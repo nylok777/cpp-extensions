@@ -1,0 +1,165 @@
+BasedOnStyle: LLVM
+Language: Cpp
+Standard: c++20
+ColumnLimit: 100
+AccessModifierOffset: -4
+
+### ALIGNMENT ###
+AlignAfterOpenBracket: true
+AlignArrayOfStructures: Left
+PointerAlignment: Left
+QualifierAlignment: Left
+#QualifierOrder: [inline, static, constexpr, volatile, const, friend, type, restrict]
+ReferenceAlignment: Left
+
+### SHORT CONSTRUCTS ###
+AllowShortBlocksOnASingleLine: Empty
+AllowShortCaseExpressionOnASingleLine: true
+AllowShortCaseLabelsOnASingleLine: true
+AllowShortCompoundRequirementOnASingleLine: true
+AllowShortEnumsOnASingleLine: true
+AllowShortFunctionsOnASingleLine: All
+AllowShortIfStatementsOnASingleLine: AllIfsAndElse
+AllowShortLambdasOnASingleLine: All
+AllowShortLoopsOnASingleLine: true
+AllowShortNamespacesOnASingleLine: true
+
+### LINE BREAKS ###
+AllowAllArgumentsOnNextLine: false
+AllowAllParametersOfDeclarationOnNextLine: false
+AllowBreakBeforeQtProperty: true
+AlwaysBreakBeforeMultilineStrings: false
+BreakBeforeBraces: Custom
+BraceWrapping: 
+    AfterCaseLabel: true
+    AfterClass: false
+    AfterControlStatement: MultiLine
+    AfterEnum: false
+    AfterFunction: true
+    AfterNamespace: true
+    AfterStruct: false
+    AfterUnion: false
+    AfterExternBlock: false
+    BeforeCatch: true
+    BeforeElse: true
+    BeforeLambdaBody: false
+    BeforeWhile: true
+    IndentBraces: false
+    SplitEmptyFunction: false
+    SplitEmptyRecord: false
+    SplitEmptyNamespace: false
+BreakAdjacentStringLiterals: false
+BreakAfterAttributes: Leave
+BreakAfterOpenBracketBracedList: true
+BreakAfterOpenBracketFunction: false
+BreakAfterOpenBracketIf: false
+BreakAfterOpenBracketLoop: false
+BreakAfterOpenBracketSwitch: false
+BreakAfterReturnType: Automatic
+BreakBeforeBinaryOperators: All
+BreakBeforeCloseBracketBracedList: true
+BreakBeforeCloseBracketFunction: false
+BreakBeforeCloseBracketIf: false
+BreakBeforeCloseBracketLoop: false
+BreakBeforeCloseBracketSwitch: false
+BreakBeforeConceptDeclarations: Allowed
+BreakBeforeTemplateCloser: true
+BreakBeforeTernaryOperators: true
+BreakBinaryOperations: RespectPrecedence
+BreakConstructorInitializers: BeforeColon
+BreakFunctionDefinitionParameters: false
+BreakInheritanceList: AfterComma
+BreakStringLiterals: true
+BreakTemplateDeclarations: MultiLine
+RequiresClausePosition: WithPreceding
+SeparateDefinitionBlocks: Leave
+
+### INDENTATION ###
+BracedInitializerIndentWidth: 4
+ContinuationIndentWidth: 4
+IndentAccessModifiers: false
+IndentCaseBlocks: true
+IndentCaseLabels: true
+IndentExportBlock: true
+IndentExternBlock: Indent
+IndentPPDirectives: None
+IndentRequiresClause: true
+IndentWidth: 4
+IndentWrappedFunctionNames: false
+LambdaBodyIndentation: Signature
+NamespaceIndentation: None
+RequiresExpressionIndentation: OuterScope
+
+### BIN PACKING ###
+BinPackArguments: true
+BinPackLongBracedList: true
+BinPackParameters: OnePerLine
+PackConstructorInitializers: NextLine
+
+CompactNamespaces: true
+Cpp11BracedListStyle: true
+DerivePointerAlignment: false
+EmptyLineAfterAccessModifier: Never
+EmptyLineBeforeAccessModifier: LogicalBlock
+EnumTrailingComma: Leave
+FixNamespaceComments: true
+IncludeBlocks: Regroup
+IncludeCategories:
+    - Regex: '^<[a-z_]+>$'
+      Priority: 1
+    - Regex: '^<Q[a-zA-Z]+>$'
+      Priority: 2
+    - Regex: '^<.*>$'
+      Priority: 3
+    - Regex: '^".*"$'
+      Priority: 4
+InsertBraces: false
+InsertNewlineAtEOF: true
+KeepEmptyLines:
+    AtEndOfFile: false
+    AtStartOfBlock: false
+    AtStartOfFile: false
+MainIncludeChar: Quote
+MaxEmptyLinesToKeep: 1
+NumericLiteralCase:
+    ExponentLetter: Lower
+    HexDigit: Upper
+    Prefix: Lower
+    Suffix: Lower
+
+RemoveBracesLLVM: false
+RemoveEmptyLinesInUnwrappedLines: false
+RemoveParentheses: Leave
+RemoveSemicolon: false
+
+### SPACES ###
+SpaceAfterCStyleCast: false
+SpaceAfterLogicalNot: false
+SpaceAfterOperatorKeyword: false
+SpaceAfterTemplateKeyword: false
+SpaceAroundPointerQualifiers: Default
+SpaceBeforeAssignmentOperators: true
+SpaceBeforeCaseColon: false
+SpaceBeforeCpp11BracedList: false
+SpaceBeforeCtorInitializerColon: true
+SpaceBeforeInheritanceColon: true
+SpaceBeforeParens: ControlStatements
+SpaceBeforeRangeBasedForLoopColon: true
+SpaceBeforeSquareBrackets: false
+SpaceInEmptyBraces: Never
+SpacesInAngles: Never
+SpacesInSquareBrackets: false
+
+### PENALTIES ###
+PenaltyBreakBeforeFirstCallParameter: 100
+PenaltyReturnTypeOnItsOwnLine: 100
+PenaltyExcessCharacter: 5
+PenaltyBreakOpenParenthesis: 75
+
+StatementMacros:
+    - __host__
+    - __device__
+    - __global__
+    - __shared__
+    - Q_OBJECT
+    - QML_ELEMENT
