@@ -1,6 +1,6 @@
 BasedOnStyle: LLVM
 Language: Cpp
-Standard: c++20
+Standard: Latest
 ColumnLimit: 140
 AccessModifierOffset: -4
 

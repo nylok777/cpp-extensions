@@ -180,6 +180,11 @@ ext_header_only_library(range_extensions
         SOURCES "include/ext_ranges.hpp"
 )
 
+ext_header_only_library(chunked_string
+        NSPACE CppExtensions
+        SOURCES "include/basic_chunked_string.hpp" "include/chunked_string.hpp"
+)
+
 ext_install_targets(
-        TARGETS concept_extensions range_extensions
+        TARGETS concept_extensions range_extensions chunked_string
 )

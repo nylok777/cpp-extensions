@@ -51,8 +51,14 @@ struct extract_template<Template<T, V, Args...>> {
 template<typename T = std::byte> requires std::copyable<T>
 using copyable_type = T;
 
-template<typename T = std::unique_ptr<std::byte>> requires(!std::copyable<T>) && std::movable<T>
-using move_only_type = T;
+struct move_only_type {
+    move_only_type() = default;
+    move_only_type(move_only_type&&) noexcept = default;
+    move_only_type& operator=(move_only_type&&) noexcept = default;
+    move_only_type(const move_only_type&) = delete;
+    move_only_type& operator=(const move_only_type&) = delete;
+    std::byte data;
+};
 
 template<typename M> struct monad_traits {
     using value_type = M::value_type;
