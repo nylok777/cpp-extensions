@@ -115,6 +115,7 @@ template<typename ValueTp, template<typename> class StorageTp>
 concept prependable = requires(ValueTp value, StorageTp<ValueTp> store) { store.push_front(std::forward<ValueTp>(value)); };
 
 template<typename T> inline constexpr bool enable_insert_range = false;
+template<typename T> inline constexpr bool enable_forward_insert_range = false;
 template<typename T> inline constexpr bool enable_back_insert_range = false;
 template<typename T> inline constexpr bool enable_front_insert_range = false;
 
@@ -122,22 +123,34 @@ template<typename T>
 concept insert_range
     = std::ranges::input_range<T>
       && (enable_insert_range<T>
-          || insertable<std::ranges::range_value_t<T>, extract_template<std::remove_cv_t<T>>::template type, std::ranges::iterator_t<T>>);
+          || requires(std::ranges::iterator_t<T> iter, std::ranges::range_value_t<T> value, T& range)
+{
+    range.insert(iter, value);
+});
 
 template<typename T>
 concept forward_insert_range
     = std::ranges::input_range<T>
-      && insertable_after<std::ranges::range_value_t<T>, extract_template<std::remove_cv_t<T>>::template type, std::ranges::iterator_t<T>>;
+      && (enable_forward_insert_range<T> || requires(std::ranges::iterator_t<T> iter, std::ranges::range_value_t<T> value, T& range)
+{
+    range.insert_after(iter, value);
+});
 
 template<typename T>
 concept back_insert_range
     = std::ranges::input_range<T>
-      && (enable_back_insert_range<T> || appendable<std::ranges::range_value_t<T>, extract_template<std::remove_cv_t<T>>::template type>);
+      && (enable_back_insert_range<T> || requires(std::ranges::range_value_t<T> value, T& range)
+{
+    range.push_back(value);
+});
 
 template<typename T>
 concept front_insert_range
     = std::ranges::input_range<T>
-      && (enable_front_insert_range<T> || prependable<std::ranges::range_value_t<T>, extract_template<std::remove_cv_t<T>>::template type>);
+      && (enable_front_insert_range<T> || requires(std::ranges::range_value_t<T> value, T& range)
+{
+    range.push_front(value);
+});
 
 template<typename U, typename T> concept collection_of = std::same_as<std::ranges::range_value_t<U>, T>;
 
