@@ -95,18 +95,37 @@ TEST_F(ChunkedStringTests, ConstructionFromPack)
 TEST_F(ChunkedStringTests, ConstructionFromStringAndOffsetArray)
 {
     using diff_t = chunked_string_t::difference_type;
+
     std::array<diff_t, dog_breeds.size()> offsets{};
     std::ranges::transform(dog_breeds, offsets.begin(), [i = diff_t{0}](const auto& view) mutable {
-        auto x = i + static_cast<int>(i > 0);
-        i += view.size() - 1;
+        auto x = i;
+        i += static_cast<diff_t>(view.size());
         return x;
     });
-    chunked_string_t chunked_string{dog_breeds_concat, offsets};
-    std::string string{chunked_string[0]};
-    for (size_t i = 1; i < dog_breeds.size(); ++i)
-        string += chunked_string[i];
+    std::string string;
+    string.reserve(dog_breeds_concat.size());
 
+    chunked_string_t chunked_string{dog_breeds_concat, offsets};
+
+    for (size_t i = 0; i < dog_breeds.size(); ++i) {
+        ASSERT_STREQ(dog_breeds[i].data(), chunked_string[i].c_str());
+        string += chunked_string[i];
+    }
     EXPECT_STREQ(string.c_str(), dog_breeds_concat.data());
+}
+
+TEST_F(ChunkedStringTests, Reserve)
+{
+    auto chunked_string = []<size_t... Is>(std::index_sequence<Is...>) {
+        return chunked_string_t{dog_breeds[Is]...};
+    }(std::make_index_sequence<dog_breeds.size()>{});
+    constexpr size_t idx = 1;
+    auto prev_size = chunked_string.size(idx);
+
+    ASSERT_NO_FATAL_FAILURE(chunked_string.reserve(prev_size + 10, idx));
+
+    EXPECT_EQ(prev_size, chunked_string.size(idx));
+    EXPECT_EQ(prev_size + 10, chunked_string.capacity(idx));
 }
 
 TEST_F(ChunkedStringTests, AssignmentAppend)
