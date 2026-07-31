@@ -30,56 +30,90 @@ public:
     {
         for (size_type i = 0; chunk& chunk : m_chunks) chunk = {this, i++};
     }
-    explicit constexpr basic_chunked_string(size_type size) : m_data(size, Char{'\0'})
+
+    explicit constexpr basic_chunked_string(size_type size) : m_data(size + ChunkNum, Char{'\0'})
     {
-        size_type n = size / ChunkNum;
-        size_type offset = 0;
+        auto fn = [n = size / ChunkNum, this](auto x) {
+            difference_type offset = (n * x) + static_cast<difference_type>(x > 0);
+            return chunk{m_data.begin() + offset, offset, this, x};
+        };
         for (size_type i = 0; i < ChunkNum; ++i) {
-            auto it = m_data.begin() + offset;
-            chunk chunk{it, it, offset, this, i};
-            if constexpr (!back_insert_range<chunk_sequence>) m_chunks[i] = std::move(chunk);
-            else m_chunks.push_back(std::move(chunk));
-            offset += n;
+            if constexpr (back_insert_range<chunk_sequence>) m_chunks.push_back(fn(i));
+            else m_chunks[i] = fn(i);
         }
     }
-    constexpr basic_chunked_string(size_type size, Char ch) : m_data(size, ch)
+
+    constexpr basic_chunked_string(size_type size, Char ch) : m_data(ChunkNum - 1 + size, ch)
     {
-        size_type n = size / ChunkNum;
-        size_type offset = 0;
+        auto fn = [n = (size / ChunkNum), this](size_type x) {
+            difference_type offset = (n * x) + static_cast<difference_type>(x > 0);
+            auto first = m_data.begin() + offset;
+            first[n] = Char{'\0'};
+            return chunk{first, first + n, offset, this, x};
+        };
         for (size_type i = 0; i < ChunkNum; ++i) {
-            auto it = m_data.begin() + offset;
-            it[n - 1] = Char{'\0'};
-            chunk chunk{it, it + n, offset, this, i};
-            if constexpr (!back_insert_range<chunk_sequence>) m_chunks[i] = std::move(chunk);
-            else m_chunks.push_back(std::move(chunk));
-            offset += n;
+            if constexpr (back_insert_range<chunk_sequence>) m_chunks.push_back(fn(i));
+            else m_chunks[i] = fn(i);
         }
     }
-    template<size_type... Offsets>
-    constexpr basic_chunked_string(string_like<Char> auto&& string) requires std::convertible_to<decltype(string), char_sequence>
-        : m_data(std::forward<decltype(string)>(string))
+
+    template<string_like<Char> Str> requires std::constructible_from<char_sequence, Str>
+    constexpr basic_chunked_string(Str&& string) : m_data(std::forward<Str>(string))
     {
-        constexpr size_type idx = 0;
-        this->m_chunks = chunk_sequence{(chunk{m_data.begin(), m_data.begin() + Offsets, Offsets, this, idx++})...};
-    }
-    template<size_type... Offsets>
-    constexpr basic_chunked_string(iterable_of<Char> auto&& range) : m_data(std::from_range, std::forward<decltype(range)>(range))
-    {
-        constexpr size_type idx = 0;
-        this->m_chunks = chunk_sequence{(chunk{m_data.begin(), m_data.begin() + Offsets, Offsets, this, idx++})...};
-    }
-    basic_chunked_string(string_like<Char> auto&& string, const iterable_of<size_type> auto& offsets)
-        requires std::convertible_to<decltype(string), char_sequence>
-        : m_data(std::forward<decltype(string)>(string))
-    {
-        if constexpr (!back_insert_range<chunk_sequence>) {
-            auto it = offsets.begin();
-            for (size_type i = 0; chunk& chnk : m_chunks) chnk = chunk{m_data.begin(), m_data.begin() + *it, *it++, this, i++};
+        auto len = m_data.size();
+        m_data.resize(ChunkNum - 1 + len);
+        auto fn = [this](auto first, auto last, difference_type offset, size_type idx) {
+            chunk chunk{first, last, offset, this, idx};
+            if constexpr (back_insert_range<chunk_sequence>) m_chunks.push_back(std::move(chunk));
+            else m_chunks[idx] = std::move(chunk);
+        };
+        fn(m_data.begin(), m_data.begin() + len, 0, 0);
+        for (size_type i = 1; i < ChunkNum; ++i) {
+            difference_type offset = len + i;
+            auto iter = m_data.begin() + offset;
+            fn(iter, iter, offset, i);
         }
-        else {
-            auto it = offsets.begin();
-            for (size_type i = 0; i < ChunkNum; ++i) m_chunks.push_back(m_data.begin(), m_data.begin() + *it, *it++, this, i);
+    }
+
+    template<string_like<Char>... Strs> requires (std::is_object_v<std::remove_cvref_t<Strs>> && ...)
+    constexpr basic_chunked_string(Strs&&... strings)
+    {
+        std::array<size_type, sizeof...(Strs)> sizes{(strings.size())...};
+        std::array<difference_type, sizeof...(Strs)> offsets;
+
+        size_type total_size = std::ranges::fold_left(sizes, size_type{0}, [i = size_type{0}, &offsets](auto a, auto b) mutable {
+            offsets[i++] = static_cast<difference_type>(a) + static_cast<difference_type>(i > 0);
+            return a + b;
+        });
+        m_data.resize(ChunkNum - 1 + total_size);
+
+        auto fn = [i = size_type{0}, this, &offsets, &sizes]<typename T>(T&& str) mutable {
+            std::ranges::copy(std::forward<T>(str), m_data.begin() + offsets[i]);
+            chunk chunk{m_data.begin() + offsets[i], offsets[i], sizes[i], this, i++};
+            if constexpr (back_insert_range<chunk_sequence>) m_chunks.push_back(std::move(chunk));
+            else m_chunks[i - 1] = std::move(chunk);
+        };
+        (fn(std::forward<Strs>(strings)), ...);
+    }
+
+    template<string_like<Char> Str, template<typename, integer auto> class Array> requires std::convertible_to<Str, char_sequence> ||
+        std::constructible_from<char_sequence, Str>
+    constexpr basic_chunked_string(Str&& str, const Array<difference_type, ChunkNum>& offsets) : m_data(std::forward<Str>(str))
+    {
+        if (auto s = ChunkNum - 1 + m_data.size(); m_data.capacity() < s)
+            m_data.reserve(s);
+        if constexpr (back_insert_range<chunk_sequence>)
+            m_chunks.reserve(ChunkNum);
+        auto fn = [this, idx = size_type{0}](auto offset, auto len) mutable {
+            chunk chunk = {m_data.begin() + offset, offset, len, this, idx++};
+            if constexpr (back_insert_range<chunk_sequence>) m_chunks.push_back(std::move(chunk));
+            else m_chunks[idx - 1] = std::move(chunk);
+        };
+        for (auto [x, y] : offsets | std::views::adjacent<2>) {
+            m_data.insert(m_data.begin() + y, Char{'\0'});
+            fn(x + static_cast<int>(0 < x), static_cast<size_type>(y - x));
         }
+        fn(offsets[ChunkNum - 1] + 1, m_data.size());
     }
 
 private:
@@ -194,9 +228,14 @@ public:
 
     private:
         constexpr chunk(basic_chunked_string* ptr, size_type idx) : m_string(), m_parent(ptr), m_offset(0), m_idx(idx) {}
-        chunk(std::contiguous_iterator auto first,
+        constexpr chunk(std::contiguous_iterator auto iter, difference_type offset, basic_chunked_string* parent, size_type idx)
+            : m_string(iter, iter), m_parent(parent), m_offset(offset), m_idx(idx)
+        {}
+        constexpr chunk(std::contiguous_iterator auto first, difference_type offset, size_type len, basic_chunked_string* parent,
+            size_type idx) : m_string(first, first + len), m_parent(parent), m_offset(offset), m_idx(idx) {}
+        constexpr chunk(std::contiguous_iterator auto first,
               std::sentinel_for<decltype(first)> auto sent,
-              size_type offset,
+              difference_type offset,
               basic_chunked_string* parent,
               size_type idx)
             : m_string(first, sent), m_parent(parent), m_offset(offset), m_idx(idx)
@@ -297,8 +336,6 @@ public:
     constexpr void push_back(Char ch, size_type chunk_idx) { m_chunks[chunk_idx].push_back(ch); }
 
 private:
-    static consteval bool check_index(size_type idx) { return idx < ChunkNum && idx >= 0; }
-    template<typename Self> constexpr auto char_data(this Self& self) { return std::forward_like<Self>(self.m_data.data()); }
     template<string_like<Char> StringTp> constexpr void init_data(StringTp&& str, size_type idx)
     {
         m_data.resize(std::ranges::size(str) + ChunkNum);
