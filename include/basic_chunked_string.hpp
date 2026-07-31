@@ -211,31 +211,6 @@ private:
     }
     constexpr auto begin_char() -> std::ranges::iterator_t<char_sequence> { return m_data.begin(); }
     constexpr auto end_char() -> std::ranges::iterator_t<char_sequence> { return m_data.end(); }
-    template<bool Resized> constexpr void reset_chunks(chunk& selected_chunk, [[maybe_unused]] size_type extra_offset)
-    {
-        auto reset_fn = [this](auto& chunk, size_type size) {
-            auto first = m_data.begin() + chunk.offset();
-            chunk.reset(first, first + size);
-        };
-
-        if (&selected_chunk == &m_chunks.back())
-            for (chunk& chunk : std::views::counted(m_chunks.begin(), m_chunks.size() - 1)) reset_fn(chunk, chunk.size());
-        else {
-            auto take_while = [&](auto cmp) {
-                return std::views::take_while([&selected_chunk, cmp](auto& chunk) -> bool { return cmp(&chunk, &selected_chunk); });
-            };
-
-            for (chunk& chunk : m_chunks | take_while(std::less<>{})) reset_fn(chunk, chunk.size());
-
-            for (chunk& chunk : m_chunks | std::views::reverse | take_while(std::greater<>{})) {
-                auto first = m_data.begin() + chunk.offset();
-                auto end = std::shift_right(first, first + chunk.size(), extra_offset);
-                chunk.reset(first + extra_offset, end, extra_offset);
-            }
-        }
-        if constexpr (Resized) reset_fn(selected_chunk, selected_chunk.size() + extra_offset);
-        else reset_fn(selected_chunk, selected_chunk.size());
-    }
 };
 
 template<character Char, size_t ChunkNum, template<typename> class CharSequence, template<typename, size_t N> class ChunkSequence>
@@ -270,16 +245,19 @@ public:
     constexpr auto size() const -> size_type { return m_string.size(); }
     constexpr auto length() const -> size_type { return m_string.size(); }
     constexpr auto max_size() const -> size_type { return m_parent->m_data.max_size(); }
+    constexpr bool empty() const { return m_string.empty(); }
+
     constexpr auto capacity() const -> size_type
     {
         chunk* next = m_parent->next_chunk(m_idx);
         if (next == nullptr || next->m_offset == 0) return m_parent->capacity() - m_offset;
         return static_cast<size_type>(std::max(difference_type{0}, next->m_offset - m_offset - 1));
     }
-    constexpr auto free_capacity() const -> size_type { return capacity() - m_string.size(); }
 
-    constexpr void reserve(size_type size) { resize_sequence<true>(size); }
     constexpr void resize(size_type size) { resize_sequence<false>(size); }
+    constexpr void reserve(size_type size) { resize_sequence<true>(size); }
+
+    constexpr auto free_capacity() const -> size_type { return capacity() - m_string.size(); }
 
     template<string_like<Char> StringTp> constexpr chunk& operator=(StringTp&& str)
     {
@@ -359,7 +337,6 @@ private:
                     size_type idx)
         : m_string(first, sent), m_parent(parent), m_offset(offset), m_idx(idx)
     {}
-    constexpr auto offset() const -> size_type { return m_offset; }
     template<typename Self> constexpr auto cast_iterator(this Self&, std::contiguous_iterator auto iter)
     {
         if constexpr (std::is_const_v<Self>) return std::ranges::const_iterator_t<char_sequence>{std::to_address(iter)};
@@ -377,13 +354,16 @@ private:
             m_string = {it, it};
         }
     }
-    constexpr void reset(std::contiguous_iterator auto first, std::contiguous_iterator auto last)
+    constexpr void reset(iterator first, iterator last, difference_type extra_offset = 0) requires
+    (!std::convertible_to<decltype(first), std::ranges::const_iterator_t<char_sequence>>)
     {
         m_string = std::span<Char>{cast_iterator(first), cast_iterator(last)};
+        m_offset += extra_offset;
     }
-    constexpr void reset(std::contiguous_iterator auto first, std::contiguous_iterator auto last, size_type extra_offset)
+    constexpr void reset(std::ranges::iterator_t<char_sequence> first, std::ranges::iterator_t<char_sequence> last,
+        difference_type extra_offset = 0)
     {
-        m_string = std::span<Char>{cast_iterator(first), cast_iterator(last)};
+        m_string = std::span<Char>{first, last};
         m_offset += extra_offset;
     }
     constexpr void reset(std::ranges::iterator_t<char_sequence> first, size_type len)
@@ -402,8 +382,12 @@ private:
                 first += extra_len;
                 last += extra_len;
             }
-            else last = std::shift_right(first, last, extra_len);
-            reset(first, last, extra_len);
+            else {
+                first = std::shift_right(first, last + extra_len, extra_len);
+                last = first + size();
+                if (m_idx < ChunkNum - 1) *last = Char{'\0'};
+            }
+            reset(first, last, static_cast<difference_type>(extra_len));
         }
     }
     template<bool ReserveOnly> constexpr void resize_sequence(size_type size)
@@ -411,12 +395,11 @@ private:
         if (size <= m_string.size()) return;
         size_type extra = size - m_string.size();
         m_parent->m_data.resize(m_parent->m_data.size() + extra);
-        for (chunk& chunk_ : std::views::filter(m_parent->m_chunks, [this](const auto& x) { return &x != this; }))
+        for (chunk& chunk_ : std::views::filter(m_parent->m_chunks, [this](const auto& x) { return &x != this; }) | std::views::reverse)
             chunk_.reset<false>(this, extra);
 
         if constexpr (ReserveOnly) reset(m_parent->m_data.begin() + m_offset, this->size());
         else reset(m_parent->m_data.begin() + m_offset, size);
-        // m_parent->reset_chunks<!ReserveOnly>(*this, extra);
     }
     template<string_like<Char> StringTp>
     constexpr chunk& modify(StringTp&& str, std::contiguous_iterator auto first, difference_type pos, size_type cpcty)

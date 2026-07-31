@@ -114,19 +114,45 @@ TEST_F(ChunkedStringTests, ConstructionFromStringAndOffsetArray)
     EXPECT_STREQ(string.c_str(), dog_breeds_concat.data());
 }
 
-TEST_F(ChunkedStringTests, Reserve)
-{
-    auto chunked_string = []<size_t... Is>(std::index_sequence<Is...>) {
+class ChunkedStringCapacityTests : public ChunkedStringTests, public testing::WithParamInterface<size_t>{
+protected:
+    using Base = ChunkedStringTests;
+
+    chunked_string_t chunked_string = []<size_t... Is>(std::index_sequence<Is...>) {
         return chunked_string_t{dog_breeds[Is]...};
     }(std::make_index_sequence<dog_breeds.size()>{});
-    constexpr size_t idx = 1;
-    auto prev_size = chunked_string.size(idx);
+};
+
+TEST_P(ChunkedStringCapacityTests, Reserve)
+{
+    const size_t idx = GetParam();
+    const auto prev_size = chunked_string.size(idx);
 
     ASSERT_NO_FATAL_FAILURE(chunked_string.reserve(prev_size + 10, idx));
 
     EXPECT_EQ(prev_size, chunked_string.size(idx));
     EXPECT_EQ(prev_size + 10, chunked_string.capacity(idx));
+
+    for (const auto & [idx, view] : dog_breeds | std::views::enumerate) {
+        EXPECT_STREQ(view.data(), chunked_string[idx].c_str());
+    }
 }
+
+TEST_P(ChunkedStringCapacityTests, Resize)
+{
+    const size_t idx = GetParam();
+    const auto prev_size = chunked_string.size(idx);
+
+    ASSERT_NO_FATAL_FAILURE(chunked_string.resize(prev_size + 10, idx));
+
+    EXPECT_EQ(prev_size + 10, chunked_string.size(idx));
+
+    for (const auto & [idx, view] : dog_breeds | std::views::enumerate) {
+        EXPECT_STREQ(view.data(), chunked_string[idx].c_str());
+    }
+}
+
+INSTANTIATE_TEST_SUITE_P(ReserveAndResize, ChunkedStringCapacityTests, testing::Values(0, 1, 3));
 
 TEST_F(ChunkedStringTests, AssignmentAppend)
 {
