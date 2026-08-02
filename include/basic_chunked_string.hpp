@@ -5,6 +5,8 @@
 #ifndef CPPEXTENSIONS_BASIC_CHUNKED_STRING_HPP
 #define CPPEXTENSIONS_BASIC_CHUNKED_STRING_HPP
 #if __cplusplus >= 202302l
+#include "basic_chunked_string.hpp"
+
 #include <algorithm>
 #include <span>
 #include <stdexcept>
@@ -43,7 +45,7 @@ public:
     {
         auto fn = [n = size / ChunkNum, this](auto x) {
             difference_type offset = (n * x) + static_cast<difference_type>(x > 0);
-            return chunk{m_data.begin() + offset, offset, this, x};
+            return chunk{this, x, offset, 0};
         };
         for (size_type i = 0; i < ChunkNum; ++i) {
             if constexpr (back_insert_range<chunk_sequence>) m_chunks.push_back(fn(i));
@@ -55,9 +57,8 @@ public:
     {
         auto fn = [n = (size / ChunkNum), this](size_type x) {
             difference_type offset = (n * x) + static_cast<difference_type>(x > 0);
-            auto first = m_data.begin() + offset;
-            first[n] = Char{'\0'};
-            return chunk{first, first + n, offset, this, x};
+            m_data[offset + n] = Char{'\0'};
+            return chunk{this, x, offset, n};
         };
         for (size_type i = 0; i < ChunkNum; ++i) {
             if constexpr (back_insert_range<chunk_sequence>) m_chunks.push_back(fn(i));
@@ -70,16 +71,15 @@ public:
     {
         auto len = m_data.size();
         m_data.resize(ChunkNum - 1 + len);
-        auto fn = [this](auto first, auto last, difference_type offset, size_type idx) {
-            chunk chunk{first, last, offset, this, idx};
+        auto fn = [this](size_type idx, difference_type offset, size_type len) {
+            chunk chunk{this, idx, offset, len};
             if constexpr (back_insert_range<chunk_sequence>) m_chunks.push_back(std::move(chunk));
             else m_chunks[idx] = std::move(chunk);
         };
-        fn(m_data.begin(), m_data.begin() + len, 0, 0);
+        fn(0, 0, len);
         for (size_type i = 1; i < ChunkNum; ++i) {
             difference_type offset = len + i;
-            auto iter = m_data.begin() + offset;
-            fn(iter, iter, offset, i);
+            fn(i, offset, 0);
         }
     }
 
@@ -100,9 +100,10 @@ public:
 
         auto fn = [i = size_type{0}, this, &offsets, &sizes]<typename T>(T&& str) mutable {
             std::ranges::copy(std::forward<T>(str), m_data.begin() + offsets[i]);
-            chunk chunk{m_data.begin() + offsets[i], offsets[i], sizes[i], this, i++};
+            chunk chunk{this, i, offsets[i], sizes[i]};
             if constexpr (back_insert_range<chunk_sequence>) m_chunks.push_back(std::move(chunk));
-            else m_chunks[i - 1] = std::move(chunk);
+            else m_chunks[i] = std::move(chunk);
+            ++i;
         };
         (fn(std::forward<Strs>(strings)), ...);
     }
@@ -114,9 +115,9 @@ public:
         if (auto s = ChunkNum - 1 + m_data.size(); m_data.capacity() < s) m_data.reserve(s);
         if constexpr (back_insert_range<chunk_sequence>) m_chunks.reserve(ChunkNum);
         auto fn = [this, idx = size_type{0}](auto offset, auto len) mutable {
-            chunk chunk = {m_data.begin() + offset, offset, len, this, idx++};
+            chunk chunk{this, idx, offset, len};
             if constexpr (back_insert_range<chunk_sequence>) m_chunks.push_back(std::move(chunk));
-            else m_chunks[idx - 1] = std::move(chunk);
+            else m_chunks[idx++] = std::move(chunk);
         };
         int idx = 0;
         for (auto [x, y] : offsets | std::views::adjacent<2>) {
@@ -127,6 +128,15 @@ public:
     }
 
     template<typename Self> constexpr decltype(auto) operator[](this Self& self, size_type chunk_idx) { return self.m_chunks[chunk_idx]; }
+    template<typename Self> constexpr decltype(auto) operator[](this Self& self, size_type chunk_idx, size_type pos)
+    {
+        return self.m_chunks[chunk_idx][pos];
+    }
+
+    template<typename Self> constexpr decltype(auto) back(this Self& self, size_type chunk_idx)
+    {
+        return std::forward_like<Self>(self.m_chunks[chunk_idx].back());
+    }
 
     constexpr auto size(size_type chunk_idx) const -> size_type { return m_chunks[chunk_idx].size(); }
     constexpr auto size() const -> size_type
@@ -136,7 +146,7 @@ public:
         return acc;
     }
     constexpr auto capacity(size_type chunk_idx) const -> size_type { return m_chunks[chunk_idx].capacity(); }
-    constexpr auto capacity() const -> size_type { return m_data.size(); }
+    constexpr auto capacity() const -> size_type { return m_data.size() - (ChunkNum - 1); }
 
     constexpr void reserve(size_type size, size_type idx)
     {
@@ -147,6 +157,11 @@ public:
     {
         if (idx >= ChunkNum) throw std::out_of_range{"Index out of range."};
         m_chunks[idx].resize(size);
+    }
+    constexpr void clear(size_type idx)
+    {
+        if (idx >= ChunkNum) throw std::out_of_range{"Index out of range."};
+        m_chunks[idx].clear();
     }
 
     constexpr void push_back(Char ch, size_type chunk_idx)
@@ -171,15 +186,13 @@ public:
     }
     template<typename Self> constexpr auto end(this Self& self)
     {
-        return std::conditional_t<std::is_const_v<Self>, const_iterator, iterator>{
-            self.m_chunks.end() - 1, self.m_chunks.back().end()
-        };
+        return std::conditional_t<std::is_const_v<Self>, const_iterator, iterator>{self.m_chunks.end() - 1, self.m_chunks.back().end()};
     }
 
 private:
     template<string_like<Char> StringTp> constexpr void init_data(StringTp&& str, size_type idx)
     {
-        m_data.resize(std::ranges::size(str) + ChunkNum);
+        m_data.resize(std::ranges::size(str) + (ChunkNum - 1));
         std::ranges::copy(std::forward<StringTp>(str), m_data.begin() + idx);
     }
     template<string_like<Char> StringTp> constexpr void change_data(StringTp&& str, difference_type pos1, difference_type pos2)
@@ -250,14 +263,23 @@ public:
     constexpr auto capacity() const -> size_type
     {
         chunk* next = m_parent->next_chunk(m_idx);
-        if (next == nullptr || next->m_offset == 0) return m_parent->capacity() - m_offset;
-        return static_cast<size_type>(std::max(difference_type{0}, next->m_offset - m_offset - 1));
+        difference_type x;
+        if (next == nullptr) x = static_cast<difference_type>(m_parent->m_data.size()) - m_offset;
+        else x = next->m_offset - m_offset - 1;
+        return static_cast<size_type>(std::max(difference_type{0}, x));
+        // if (next == nullptr || next->m_offset == 0) return m_parent->m_data.size() - m_offset;
+        // return static_cast<size_type>(std::max(difference_type{0}, next->m_offset - m_offset - 1));
     }
 
     constexpr void resize(size_type size) { resize_sequence<false>(size); }
     constexpr void reserve(size_type size) { resize_sequence<true>(size); }
 
-    constexpr auto free_capacity() const -> size_type { return capacity() - m_string.size(); }
+    constexpr auto free_capacity() const -> size_type
+    {
+        size_type c = capacity();
+        if (c == 0) return c;
+        return c - m_string.size();
+    }
 
     template<string_like<Char> StringTp> constexpr chunk& operator=(StringTp&& str)
     {
@@ -276,11 +298,12 @@ public:
     }
     constexpr void push_back(Char ch)
     {
-        if (free_capacity() < 1) reserve(size() * 2);
-        auto it = cast_iterator(end());
+        if (m_string.data() == nullptr || free_capacity() == 0) reserve(8);
+        else if (free_capacity() == 0) reserve(std::max<size_type>(8, size() * 2));
+        auto it = m_parent->begin_char() + m_offset + size();
         *it = ch;
         *++it = Char{'\0'};
-        reset(cast_iterator(begin()), it);
+        reset(m_offset, size() + 1);
     }
     constexpr void pop_back()
     {
@@ -290,26 +313,39 @@ public:
     constexpr chunk& assign(const Char* c_str) { return assign(std::basic_string_view<Char>{c_str}); }
     template<string_like<Char> StringTp> constexpr chunk& assign(StringTp&& str)
     {
-        return modify(std::forward<StringTp>(str), m_parent->begin_char() + m_offset, m_offset, capacity());
+        auto str_size = std::ranges::size(str);
+
+        if (str_size <= capacity()) modify(std::forward<StringTp>(str), m_offset);
+        else modify(std::forward<StringTp>(str), m_offset, str_size);
+        return *this;
     }
     constexpr chunk& append(const Char* c_str) { return append(std::basic_string_view<Char>{c_str}); }
     template<string_like<Char> StringTp> constexpr chunk& append(StringTp&& str)
     {
-        return modify(std::forward<StringTp>(str), m_parent->begin_char() + m_offset + size(), m_offset + size(), free_capacity());
+        auto str_size = std::ranges::size(str);
+
+        if (str_size <= free_capacity()) modify(std::forward<StringTp>(str), m_offset + size());
+        else modify(std::forward<StringTp>(str), m_offset + size(), str_size + size());
+        return *this;
     }
-    constexpr chunk& erase(const_iterator first, const_iterator last)
+    constexpr chunk& erase(iterator first, iterator last)
     {
         auto dist = std::distance(first, last);
         if (dist < 0 || std::to_address(first) < std::to_address(begin()) || std::to_address(last) > std::to_address(end())) return *this;
-        if (std::to_address(last) < std::to_address(end())) std::shift_left(last, end(), dist);
-        reset(begin(), end() - dist);
-        if (end() != m_parent->m_data.end()) *end() = Char{'\0'};
+        if (std::to_address(last) < std::to_address(end())) {
+            std::shift_left(begin(), end(), dist);
+            reset(m_offset, (size() % 2) + dist);
+        }
+        else {
+            reset(m_offset, size() - dist);
+        }
+        if (m_parent->begin_char() + m_offset + size() != m_parent->end_char()) *end() = Char{'\0'};
         return *this;
     }
     constexpr void clear()
     {
         *begin() = Char{'\0'};
-        reset(begin(), begin());
+        reset(m_offset, 0);
     }
 
     constexpr auto begin() -> iterator { return m_string.begin(); }
@@ -323,61 +359,26 @@ public:
     }
 
 private:
-    constexpr chunk(basic_chunked_string* ptr, size_type idx) : m_string(), m_parent(ptr), m_offset(0), m_idx(idx) {}
-    constexpr chunk(std::contiguous_iterator auto iter, difference_type offset, basic_chunked_string* parent, size_type idx)
-        : m_string(iter, iter), m_parent(parent), m_offset(offset), m_idx(idx)
+    constexpr chunk(basic_chunked_string* ptr, size_type idx) : m_string(), m_parent(ptr), m_offset(idx), m_idx(idx) {}
+    constexpr chunk(basic_chunked_string* ptr, size_type idx, difference_type offset, size_type len)
+        : m_string(ptr->begin_char() + offset, len), m_parent(ptr), m_offset(offset), m_idx(idx)
     {}
-    constexpr chunk(std::contiguous_iterator auto first, difference_type offset, size_type len, basic_chunked_string* parent, size_type idx)
-        : m_string(first, first + len), m_parent(parent), m_offset(offset), m_idx(idx)
-    {}
-    constexpr chunk(std::contiguous_iterator auto first,
-                    std::sentinel_for<decltype(first)> auto sent,
-                    difference_type offset,
-                    basic_chunked_string* parent,
-                    size_type idx)
-        : m_string(first, sent), m_parent(parent), m_offset(offset), m_idx(idx)
-    {}
-    template<typename Self> constexpr auto cast_iterator(this Self&, std::contiguous_iterator auto iter)
+
+    constexpr void reset() { m_string = std::span<Char>{m_parent->begin_char() + m_offset, size()}; }
+    constexpr void reset(difference_type offset, size_type length)
     {
-        if constexpr (std::is_const_v<Self>) return std::ranges::const_iterator_t<char_sequence>{std::to_address(iter)};
-        else return std::ranges::iterator_t<char_sequence>{std::to_address(iter)};
-    }
-    constexpr void init_position(size_type modified_idx, size_type len)
-    {
-        if (m_idx == modified_idx) {
-            auto first = m_parent->begin_char() + m_idx;
-            m_string = {first, first + len};
-        }
-        else {
-            m_offset = m_idx > modified_idx ? len + 1 + m_idx : m_idx;
-            auto it = m_parent->begin_char() + m_offset;
-            m_string = {it, it};
-        }
-    }
-    constexpr void reset(iterator first, iterator last, difference_type extra_offset = 0) requires
-    (!std::convertible_to<decltype(first), std::ranges::const_iterator_t<char_sequence>>)
-    {
-        m_string = std::span<Char>{cast_iterator(first), cast_iterator(last)};
-        m_offset += extra_offset;
-    }
-    constexpr void reset(std::ranges::iterator_t<char_sequence> first, std::ranges::iterator_t<char_sequence> last,
-        difference_type extra_offset = 0)
-    {
-        m_string = std::span<Char>{first, last};
-        m_offset += extra_offset;
-    }
-    constexpr void reset(std::ranges::iterator_t<char_sequence> first, size_type len)
-    {
-        m_string = std::span<Char>{first, first + len};
+        auto first = m_parent->begin_char() + offset;
+        m_string = std::span<Char>{first, first + length};
+        m_offset = offset;
     }
     template<bool DataShifted> constexpr void reset(const chunk* modifier, size_type extra_len)
     {
-        auto first = m_parent->m_data.begin() + m_offset;
-        auto last = first + size();
-
-        if (this < modifier) reset(first, last);
-        else if (this == modifier) reset(first, last + extra_len);
+        if (this < modifier) reset();
+        else if (this == modifier) reset(m_offset, size() + extra_len);
         else if (this > modifier) {
+            auto first = m_parent->m_data.begin() + m_offset;
+            auto last = first + size();
+
             if constexpr (DataShifted) {
                 first += extra_len;
                 last += extra_len;
@@ -387,7 +388,7 @@ private:
                 last = first + size();
                 if (m_idx < ChunkNum - 1) *last = Char{'\0'};
             }
-            reset(first, last, static_cast<difference_type>(extra_len));
+            reset(m_offset + extra_len, size());
         }
     }
     template<bool ReserveOnly> constexpr void resize_sequence(size_type size)
@@ -398,36 +399,52 @@ private:
         for (chunk& chunk_ : std::views::filter(m_parent->m_chunks, [this](const auto& x) { return &x != this; }) | std::views::reverse)
             chunk_.reset<false>(this, extra);
 
-        if constexpr (ReserveOnly) reset(m_parent->m_data.begin() + m_offset, this->size());
-        else reset(m_parent->m_data.begin() + m_offset, size);
+        if constexpr (ReserveOnly) reset(m_offset, this->size());
+        else reset(m_offset, size);
     }
-    template<string_like<Char> StringTp>
-    constexpr chunk& modify(StringTp&& str, std::contiguous_iterator auto first, difference_type pos, size_type cpcty)
+
+    template<string_like<Char> StringTp> constexpr void modify(StringTp&& str, difference_type n)
     {
-        constexpr bool is_string = std::same_as<std::basic_string<Char>, char_sequence>;
-        integer auto str_size = std::ranges::size(str);
-        auto first_it = cast_iterator(first);
-        auto last_it = first_it + str_size;
+        auto str_size = std::ranges::size(str);
+        auto first = m_parent->begin_char() + n;
+        auto last = first + str_size;
+        if constexpr (std::same_as<std::basic_string<Char>, char_sequence>)
+            m_parent->m_data.replace(first, last, std::forward<StringTp>(str));
+        else std::ranges::copy(std::forward<StringTp>(str), first);
+        *last = Char{'\0'};
+        reset(n, str_size);
+    }
 
-        if (str_size <= cpcty) {
-            if constexpr (is_string) m_parent->m_data.replace(first_it, last_it, std::forward<StringTp>(str));
-            else std::ranges::copy(std::forward<StringTp>(str), first_it);
-            *last_it = Char{'\0'};
-            reset(cast_iterator(begin()), last_it);
+    template<string_like<Char> StringTp> constexpr void modify(StringTp&& str, difference_type pos, size_type new_size)
+    {
+        chunk* next = m_parent->next_chunk(m_idx);
+        difference_type pos2 = next && next->capacity() > 0 ? next->m_offset : -1;
+        // m_parent->change_data(std::forward<StringTp>(str), pos, pos2);
+        char_sequence seq;
+        seq.reserve(std::max(m_parent->m_data.size() + new_size, new_size + (ChunkNum - 1)));
+        auto out = std::back_inserter(seq);
+        if (m_parent->m_data.empty() && pos < ChunkNum)
+            for (int i = 0; i < pos; ++i) out = Char{'\0'};
+        else std::copy(m_parent->begin_char(), m_parent->begin_char() + pos, out);
+        std::ranges::copy(std::forward<StringTp>(str), out);
+        if (pos2 > 0) {
+            out = Char{'\0'};
+            std::copy(m_parent->begin_char() + pos2, m_parent->end_char(), out);
         }
-        else if (m_parent->m_data.empty()) {
-            m_parent->init_data(std::forward<StringTp>(str), m_idx);
-            for (chunk& other : m_parent->m_chunks) other.init_position(m_idx, str_size);
-        }
-        else {
-            chunk* next = m_parent->next_chunk(m_idx);
-            difference_type pos2 = next && next->capacity() > 0 ? next->m_offset : -1;
-            m_parent->change_data(std::forward<StringTp>(str), pos, pos2);
-            for (chunk& chnk : m_parent->m_chunks)
-                chnk.reset<true>(this, std::abs(static_cast<difference_type>(chnk.size()) - static_cast<difference_type>(str_size)));
-        }
+        else
+            for (integer auto i = seq.size(); i < seq.capacity(); ++i) out = Char{'\0'};
+        m_parent->m_data = std::move(seq);
+        reset(m_offset, new_size);
 
-        return *this;
+        auto before_this = std::views::take_while(m_parent->m_chunks, [this](const auto& x) { return &x != this; });
+        for (chunk& other : before_this) other.reset();
+
+        auto after_this = std::views::drop_while(m_parent->m_chunks, [this](const auto& x) { return &x <= this; });
+        for (chunk& other : after_this) {
+            chunk* prev = m_parent->prev_chunk(other.m_idx);
+            difference_type new_offset = prev->m_offset + prev->size() + 1;
+            other.reset(new_offset, other.size());
+        }
     }
 };
 
@@ -446,7 +463,7 @@ public:
 
     constexpr auto operator++() -> iterator_base&
     {
-        if (!m_chunk_iter || !m_char_iter) return *this;
+        if (!m_chunk_iter || m_char_iter == char_iter{nullptr}) return *this;
         if (m_char_iter != m_chunk_iter->end()) ++m_char_iter;
         else if (m_chunk_iter != m_chunk_iter->m_parent->m_chunks.end() - 1) m_char_iter = (++m_chunk_iter)->begin();
         return *this;
@@ -507,10 +524,11 @@ private:
     char_iter m_char_iter = nullptr;
 
 public:
-    iterator_base(chunk* chunk) : m_chunk_iter(chunk), m_char_iter((m_chunk_iter ? m_chunk_iter->begin() : nullptr)) {}
+    iterator_base(chunk* chunk) : m_chunk_iter(chunk), m_char_iter((m_chunk_iter ? m_chunk_iter->begin() : char_iter{nullptr})) {}
     iterator_base(chunk* chunk, Char* iter) : m_chunk_iter(chunk), m_char_iter(iter) {}
     iterator_base(std::ranges::iterator_t<chunk_sequence> chunk_iter, std::ranges::iterator_t<char_sequence> char_iter)
-        : m_chunk_iter(chunk_iter), m_char_iter(char_iter) {}
+        : m_chunk_iter(chunk_iter), m_char_iter(char_iter)
+    {}
     template<bool OtherConst> requires(!OtherConst || IsConst)
     iterator_base(const iterator_base<OtherConst>& other) : m_chunk_iter(other.m_chunk_iter), m_char_iter(other.m_char_iter)
     {}
