@@ -4,9 +4,6 @@
 
 #ifndef CPPEXTENSIONS_BASIC_CHUNKED_STRING_HPP
 #define CPPEXTENSIONS_BASIC_CHUNKED_STRING_HPP
-#if __cplusplus >= 202302l
-#include "basic_chunked_string.hpp"
-
 #include <algorithm>
 #include <span>
 #include <stdexcept>
@@ -30,6 +27,8 @@ public:
 
     using iterator = iterator_base<false>;
     using const_iterator = iterator_base<true>;
+    using reverse_iterator = std::reverse_iterator<iterator>;
+    using const_reverse_iterator = std::reverse_iterator<const_iterator>;
 
 private:
     char_sequence m_data;
@@ -127,15 +126,22 @@ public:
         fn(offsets[idx] + idx, m_data.size());
     }
 
-    template<typename Self> constexpr decltype(auto) operator[](this Self& self, size_type chunk_idx) { return self.m_chunks[chunk_idx]; }
-    template<typename Self> constexpr decltype(auto) operator[](this Self& self, size_type chunk_idx, size_type pos)
+    constexpr auto& operator[](this auto&& self, size_type chunk_idx)
     {
-        return self.m_chunks[chunk_idx][pos];
+        return std::forward_like<decltype(self)>(self.m_chunks[chunk_idx]);
+    }
+    constexpr auto& operator[](this auto&& self, size_type chunk_idx, size_type pos)
+    {
+        return std::forward_like<decltype(self)>(self.m_chunks[chunk_idx][pos]);
     }
 
-    template<typename Self> constexpr decltype(auto) back(this Self& self, size_type chunk_idx)
+    constexpr auto& back(this auto&& self, size_type chunk_idx)
     {
-        return std::forward_like<Self>(self.m_chunks[chunk_idx].back());
+        return std::forward_like<decltype(self)>(self.m_chunks[chunk_idx].back());
+    }
+    constexpr auto& front(this auto&& self, size_type chunk_idx)
+    {
+        return std::forward_like<decltype(self)>(self.m_chunks[chunk_idx].front());
     }
 
     constexpr auto size(size_type chunk_idx) const -> size_type { return m_chunks[chunk_idx].size(); }
@@ -182,36 +188,26 @@ public:
 
     template<typename Self> constexpr auto begin(this Self& self)
     {
-        return std::conditional_t<std::is_const_v<Self>, const_iterator, iterator>{&self.m_chunks[0]};
+        return std::conditional_t<std::is_const_v<Self>, const_iterator, iterator>{self.m_chunks[0]};
     }
     template<typename Self> constexpr auto end(this Self& self)
     {
         return std::conditional_t<std::is_const_v<Self>, const_iterator, iterator>{self.m_chunks.end() - 1, self.m_chunks.back().end()};
     }
+    constexpr auto cbegin() -> const_iterator { return const_iterator{m_chunks[0]}; }
+    constexpr auto cend() -> const_iterator { return const_iterator{m_chunks.back(), m_chunks.back().end()}; }
+    constexpr auto rbegin(this auto& self)
+    {
+        auto chunk_iter = self.end();
+        return std::conditional_t<std::is_const_v<decltype(self)>, const_reverse_iterator, reverse_iterator>{chunk_iter};
+    }
+    constexpr auto rend(this auto& self)
+    {
+        auto chunk_iter = self.begin();
+        return std::conditional_t<std::is_const_v<decltype(self)>, const_reverse_iterator, reverse_iterator>{chunk_iter};
+    }
 
 private:
-    template<string_like<Char> StringTp> constexpr void init_data(StringTp&& str, size_type idx)
-    {
-        m_data.resize(std::ranges::size(str) + (ChunkNum - 1));
-        std::ranges::copy(std::forward<StringTp>(str), m_data.begin() + idx);
-    }
-    template<string_like<Char> StringTp> constexpr void change_data(StringTp&& str, difference_type pos1, difference_type pos2)
-    {
-        char_sequence seq;
-        seq.reserve(m_data.size() + std::ranges::size(str));
-        auto out = std::back_inserter(seq);
-        if (m_data.size() >= static_cast<size_type>(pos1)) std::copy(m_data.begin(), m_data.begin() + pos1, out);
-        std::ranges::copy(std::forward<StringTp>(str), out);
-        if (pos2 > 0) {
-            out = Char{'\0'};
-            std::copy(m_data.begin() + pos2, m_data.end(), out);
-        }
-        else
-            for (size_type i = seq.size(); i < std::max(m_data.size(), seq.capacity()); ++i) {
-                out = Char{'\0'};
-            }
-        m_data = std::move(seq);
-    }
     constexpr auto next_chunk(size_type idx) -> chunk*
     {
         if (idx >= ChunkNum - 1) return nullptr;
@@ -247,10 +243,10 @@ public:
     constexpr operator const Char*() const { return m_string.data(); }
     constexpr auto c_str() const -> const Char* { return m_string.data(); }
 
-    constexpr decltype(auto) operator[](this auto& self, size_type i) { return std::forward_like<decltype(self)>(self.m_string[i]); }
-    constexpr decltype(auto) at(this auto& self, size_type i)
+    constexpr auto& operator[](this auto&& self, size_type i) { return std::forward_like<decltype(self)>(self.m_string[i]); }
+    constexpr auto& at(this auto&& self, size_type i)
     {
-        return i < self.size() ? self[i] : throw std::out_of_range{"Index out of range."};
+        return i < self.size() ? std::forward_like<decltype(self)>(self[i]) : throw std::out_of_range{"Index out of range."};
     }
     constexpr decltype(auto) front(this auto& self) { return std::forward_like<decltype(self)>(self.m_string.front()); }
     constexpr decltype(auto) back(this auto& self) { return std::forward_like<decltype(self)>(self.m_string.back()); }
@@ -267,8 +263,6 @@ public:
         if (next == nullptr) x = static_cast<difference_type>(m_parent->m_data.size()) - m_offset;
         else x = next->m_offset - m_offset - 1;
         return static_cast<size_type>(std::max(difference_type{0}, x));
-        // if (next == nullptr || next->m_offset == 0) return m_parent->m_data.size() - m_offset;
-        // return static_cast<size_type>(std::max(difference_type{0}, next->m_offset - m_offset - 1));
     }
 
     constexpr void resize(size_type size) { resize_sequence<false>(size); }
@@ -307,6 +301,7 @@ public:
     }
     constexpr void pop_back()
     {
+        if (m_string.empty()) return;
         m_string.back() = Char{'\0'};
         reset(begin(), end() - 1);
     }
@@ -419,7 +414,6 @@ private:
     {
         chunk* next = m_parent->next_chunk(m_idx);
         difference_type pos2 = next && next->capacity() > 0 ? next->m_offset : -1;
-        // m_parent->change_data(std::forward<StringTp>(str), pos, pos2);
         char_sequence seq;
         seq.reserve(std::max(m_parent->m_data.size() + new_size, new_size + (ChunkNum - 1)));
         auto out = std::back_inserter(seq);
@@ -464,8 +458,8 @@ public:
     constexpr auto operator++() -> iterator_base&
     {
         if (!m_chunk_iter || m_char_iter == char_iter{nullptr}) return *this;
-        if (m_char_iter != m_chunk_iter->end()) ++m_char_iter;
-        else if (m_chunk_iter != m_chunk_iter->m_parent->m_chunks.end() - 1) m_char_iter = (++m_chunk_iter)->begin();
+        if (++m_char_iter != m_chunk_iter->end()) return *this;
+        if (m_chunk_iter->m_idx + 1 < ChunkNum) m_char_iter = (++m_chunk_iter)->begin();
         return *this;
     }
     constexpr auto operator++(int) -> iterator_base
@@ -476,9 +470,9 @@ public:
     }
     constexpr auto operator--() -> iterator_base&
     {
-        if (!m_chunk_iter || !m_char_iter) return *this;
-        if (m_char_iter != m_chunk_iter->begin()) --m_char_iter;
-        else if (m_chunk_iter != m_chunk_iter->m_parent->m_chunks.begin()) m_char_iter = (--m_chunk_iter)->end() - 1;
+        if (!m_chunk_iter || m_char_iter == char_iter{nullptr}) return *this;
+        if (--m_char_iter != m_chunk_iter->begin() - 1) return *this;
+        if (m_chunk_iter->m_idx > 0) m_char_iter = (--m_chunk_iter)->end() - 1;
         return *this;
     }
     constexpr auto operator--(int) -> iterator_base
@@ -491,7 +485,7 @@ public:
     {
         difference_type x = m_chunk_iter->end() - m_char_iter;
         if (n < x) m_char_iter += n;
-        else if (m_chunk_iter != m_chunk_iter->m_parent->m_chunks.end() - 1) m_char_iter = (++m_chunk_iter)->begin() + (n - x);
+        else if (m_chunk_iter->m_idx + 1 < ChunkNum) m_char_iter = (++m_chunk_iter)->begin() + (n - x);
         else m_char_iter = m_chunk_iter->end();
         return *this;
     }
@@ -504,9 +498,9 @@ public:
     constexpr auto operator-=(difference_type n) -> iterator_base&
     {
         difference_type x = m_char_iter - m_chunk_iter->begin();
-        if (n < x) m_char_iter -= n;
-        else if (m_chunk_iter != m_chunk_iter->m_parent->m_chunks.begin()) m_char_iter = (--m_chunk_iter)->end() - 1 - (n - x);
-        else m_char_iter = m_chunk_iter->begin();
+        if (n <= x) m_char_iter -= n;
+        else if (m_chunk_iter->m_idx > 0) m_char_iter = (--m_chunk_iter)->end() - /*1 -*/ (n - x);
+        else m_char_iter = m_chunk_iter->begin() - 1;
         return *this;
     }
     constexpr auto friend operator-(const iterator_base& iter, const difference_type n) -> iterator_base
@@ -515,7 +509,8 @@ public:
         j -= n;
         return j;
     }
-    template<typename Self> constexpr auto operator[](this Self& self, difference_type n) { *(self + n); }
+    constexpr auto&& operator[](this auto&& self, difference_type n) { return std::forward_like<decltype(self)>(*(self + n)); }
+    friend constexpr bool operator==(const iterator_base&, const iterator_base&) = default;
 
 private:
     using char_iter = std::conditional_t<IsConst, typename chunk::const_iterator, typename chunk::iterator>;
@@ -524,9 +519,11 @@ private:
     char_iter m_char_iter = nullptr;
 
 public:
-    iterator_base(chunk* chunk) : m_chunk_iter(chunk), m_char_iter((m_chunk_iter ? m_chunk_iter->begin() : char_iter{nullptr})) {}
-    iterator_base(chunk* chunk, Char* iter) : m_chunk_iter(chunk), m_char_iter(iter) {}
-    iterator_base(std::ranges::iterator_t<chunk_sequence> chunk_iter, std::ranges::iterator_t<char_sequence> char_iter)
+    iterator_base(nullptr_t) = delete;
+    iterator_base(chunk& chunk) : m_chunk_iter(&chunk), m_char_iter(m_chunk_iter->begin()) {}
+    iterator_base(chunk& chunk, difference_type pos) : m_chunk_iter(&chunk), m_char_iter(m_chunk_iter->begin() + pos) {}
+    iterator_base(chunk& chunk_, std::ranges::iterator_t<chunk> char_iter) : m_chunk_iter(&chunk_), m_char_iter(char_iter) {}
+    iterator_base(std::ranges::iterator_t<chunk_sequence> chunk_iter, std::ranges::iterator_t<chunk> char_iter)
         : m_chunk_iter(chunk_iter), m_char_iter(char_iter)
     {}
     template<bool OtherConst> requires(!OtherConst || IsConst)
@@ -536,4 +533,3 @@ public:
 
 } // namespace ext
 #endif
-#endif // CPPEXTENSIONS_BASIC_CHUNKED_STRING_HPP

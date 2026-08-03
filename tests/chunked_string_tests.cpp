@@ -377,3 +377,94 @@ TEST_F(ChunkedStringMutationTests, PushBackToEmptyAllChunks)
         EXPECT_EQ(val, ch);
     }
 }
+
+class ChunkedStringIteratorTests : public ChunkedStringTests {};
+
+TEST_F(ChunkedStringIteratorTests, TraverseSingleChunk)
+{
+    auto chunked_string = make_test_chunked_string();
+    std::string str;
+    for (size_t i = 0; i < strings_count; ++i) {
+        auto iter = chunked_string_t::iterator{chunked_string[i]};
+        for (size_t j = 0; j < chunked_string.size(i); ++j) {
+            str += *iter++;
+        }
+        ASSERT_STREQ(str.c_str(), chunked_string[i].c_str());
+        str.clear();
+    }
+}
+
+TEST_F(ChunkedStringIteratorTests, TraverseChunks)
+{
+    std::string str;
+    str.reserve(strings_concat.size());
+    auto chunked_string = make_test_chunked_string();
+    auto first = chunked_string.begin();
+    auto last = chunked_string.end();
+
+    for (auto it = first; it != last; ++it) {
+        str += *it;
+    }
+
+    EXPECT_STREQ(str.c_str(), strings_concat.data());
+}
+
+TEST_F(ChunkedStringIteratorTests, TraverseSingleChunkBackward)
+{
+    auto chunked_string = make_test_chunked_string();
+    std::string str;
+    std::string str_rev;
+    for (size_t i = 0; i < strings_count; ++i) {
+        auto last = chunked_string_t::iterator{chunked_string[i], static_cast<long int>(chunked_string.size(i))};
+        auto first = chunked_string_t::iterator{chunked_string[i]};
+        for (auto iter = last - 1; iter != first - 1; --iter) {
+            str += *iter;
+        }
+        str_rev.insert(str_rev.cbegin(), str.crbegin(), str.crend());
+        ASSERT_STREQ(str_rev.c_str(), chunked_string[i].c_str());
+        str.clear();
+        str_rev.clear();
+    }
+}
+
+TEST_F(ChunkedStringIteratorTests, TraverseChunksBackward)
+{
+    std::string str;
+    std::string str_rev;
+    str.reserve(strings_concat.size());
+    str_rev.reserve(strings_concat.size());
+    auto chunked_string = make_test_chunked_string();
+
+    for (auto iter = chunked_string.end() - 1; iter != chunked_string.begin() - 1; --iter) {
+        str += *iter;
+    }
+    str_rev.insert(str_rev.cbegin(), str.crbegin(), str.crend());
+
+    EXPECT_STREQ(str_rev.c_str(), strings_concat.data());
+}
+
+TEST_F(ChunkedStringIteratorTests, Arithmetic)
+{
+    using diff_t = chunked_string_t::difference_type;
+    auto chunked_string = make_test_chunked_string();
+
+    for (size_t i = 0; i < strings_count; ++i) {
+        bool size_is_odd = chunked_string.size(i) % 2 != 0;
+        auto s = static_cast<diff_t>(chunked_string.size(i)) + size_is_odd;
+        auto x = s / 2;
+        auto iter = chunked_string_t::iterator{chunked_string[i]} + x;
+
+        ASSERT_EQ(*iter, chunked_string[i].at(x));
+        ASSERT_EQ(*(iter - x), *chunked_string_t::iterator{chunked_string[i]});
+
+        if (i < strings_count - 1) {
+            auto y = s - x;
+            iter += y;
+            auto& elem = chunked_string[i + 1].at(y - x + size_is_odd);
+            auto& prev_elem = chunked_string[i].at(x);
+
+            ASSERT_EQ(*iter, elem);
+            ASSERT_EQ(prev_elem, *(iter - y));
+        }
+    }
+}
