@@ -131,12 +131,12 @@ TEST_P(ChunkedStringCapacityTests, Reserve)
 {
     chunked_string_t chunked_string = make_test_chunked_string();
     const size_t idx = GetParam();
-    const auto prev_size = chunked_string.size(idx);
+    const auto prev_size = chunked_string[idx].size();
 
-    ASSERT_NO_FATAL_FAILURE(chunked_string.reserve(prev_size + 10, idx));
+    ASSERT_NO_FATAL_FAILURE(chunked_string[idx].reserve(prev_size + 10));
 
-    EXPECT_EQ(prev_size, chunked_string.size(idx));
-    EXPECT_EQ(prev_size + 10, chunked_string.capacity(idx));
+    EXPECT_EQ(prev_size, chunked_string[idx].size());
+    EXPECT_EQ(prev_size + 10, chunked_string[idx].capacity());
 
     for (const auto& [idx, view] : strings | std::views::enumerate) {
         EXPECT_STREQ(view.data(), chunked_string[idx].c_str());
@@ -147,11 +147,11 @@ TEST_P(ChunkedStringCapacityTests, Resize)
 {
     chunked_string_t chunked_string = make_test_chunked_string();
     const size_t idx = GetParam();
-    const auto prev_size = chunked_string.size(idx);
+    const auto prev_size = chunked_string[idx].size();
 
-    ASSERT_NO_FATAL_FAILURE(chunked_string.resize(prev_size + 10, idx));
+    ASSERT_NO_FATAL_FAILURE(chunked_string[idx].resize(prev_size + 10));
 
-    EXPECT_EQ(prev_size + 10, chunked_string.size(idx));
+    EXPECT_EQ(prev_size + 10, chunked_string[idx].size());
 
     for (const auto& [idx, view] : strings | std::views::enumerate) {
         EXPECT_STREQ(view.data(), chunked_string[idx].c_str());
@@ -172,7 +172,7 @@ protected:
     {
         EXPECT_STREQ(chunked_string[idx].c_str(), view.data());
         EXPECT_EQ(view.size(), chunked_string[idx].size());
-        EXPECT_GE(chunked_string.capacity(idx), view.size());
+        EXPECT_GE(chunked_string[idx].capacity(), view.size());
         for (size_t i = 0; i < strings.size(); ++i) {
             if (i == idx) continue;
             EXPECT_TRUE(chunked_string[i].empty());
@@ -187,7 +187,7 @@ protected:
     static void check_modification_to_existing(const chunked_string_t& chunked_string, const std::string_view& view, size_t idx)
     {
         EXPECT_STREQ(chunked_string[idx].c_str(), view.data());
-        EXPECT_EQ(chunked_string.size(idx), view.size());
+        EXPECT_EQ(chunked_string[idx].size(), view.size());
         for (size_t i = 0; i < strings_count; ++i) {
             if (i == idx) continue;
             EXPECT_STREQ(chunked_string[i].c_str(), strings[i].data());
@@ -218,7 +218,7 @@ TEST_P(ChunkedStringMutationTests, PushBackToEmpty)
     const size_t idx = GetParam();
     chunked_string_t chunked_string{};
 
-    chunked_string.push_back(ch, idx);
+    chunked_string[idx].push_back(ch);
 
     SCOPED_TRACE("PUSH_BACK");
     check_modification_to_empty(chunked_string[idx], ch);
@@ -256,7 +256,7 @@ TEST_P(ChunkedStringMutationTests, PushBackToExisting)
     std::string string{chunked_string[idx]};
     string += ';';
 
-    chunked_string.push_back(ch, idx);
+    chunked_string[idx].push_back(ch);
 
     SCOPED_TRACE("PUSH_BACK");
     check_modification_to_existing(chunked_string, string, idx);
@@ -298,10 +298,10 @@ TEST_P(ChunkedStringMutationTests, Clear)
     const size_t idx = GetParam();
     auto chunked_string = make_test_chunked_string();
 
-    chunked_string.clear(idx);
+    chunked_string[idx].clear();
 
-    EXPECT_EQ(chunked_string.size(idx), 0);
-    EXPECT_EQ(chunked_string.capacity(idx), strings[idx].size());
+    EXPECT_EQ(chunked_string[idx].size(), 0);
+    EXPECT_EQ(chunked_string[idx].capacity(), strings[idx].size());
     for (size_t i = 0; i < strings_count; ++i) {
         if (i == idx) continue;
         EXPECT_STREQ(strings[i].data(), chunked_string[i].c_str());
@@ -315,8 +315,8 @@ TEST_F(ChunkedStringMutationTests, AssignAppendToEmptyAllChunks)
     chunked_string_t chunked_string_ap{};
     chunked_string_t chunked_string_as{};
     for (size_t i = 0; i < strings_count; ++i) {
-        chunked_string_as.assign(strings[i], i);
-        chunked_string_ap.append(strings[i], i);
+        chunked_string_as[i].assign(strings[i]);
+        chunked_string_ap[i].append(strings[i]);
     }
     for (size_t i = 0; i < strings_count; ++i) {
         {
@@ -335,7 +335,7 @@ TEST_F(ChunkedStringMutationTests, AssignToExistingAllChunks)
     auto chunked_string = make_test_chunked_string();
     constexpr std::string_view view = value;
     for (size_t i = 0; i < strings_count; ++i) {
-        chunked_string.assign(view, i);
+        chunked_string[i].assign(view);
     }
     for (size_t i = 0; i < strings_count; ++i) {
         auto msg = std::format("ASSIGN_{}", i);
@@ -351,7 +351,7 @@ TEST_F(ChunkedStringMutationTests, AppendToExistingAllChunks)
     std::string string{';'};
     string += value;
     for (size_t i = 0; i < strings_count; ++i) {
-        chunked_string.append(string, i);
+        chunked_string[i].append(string);
     }
     for (size_t i = 0; i < strings_count; ++i) {
         std::string string2{strings[i]};
@@ -368,11 +368,11 @@ TEST_F(ChunkedStringMutationTests, PushBackToEmptyAllChunks)
     chunked_string_t chunked_string{};
     constexpr char ch = 'A';
     for (size_t i = 0; i < strings_count; ++i) {
-        chunked_string.push_back(ch, i);
+        chunked_string[i].push_back(ch);
     }
     for (size_t idx = 0; idx < strings_count; ++idx) {
-        EXPECT_EQ(chunked_string.size(idx), 1);
-        EXPECT_GT(chunked_string.capacity(idx), 1);
+        EXPECT_EQ(chunked_string[idx].size(), 1);
+        EXPECT_GT(chunked_string[idx].capacity(), 1);
         char val = chunked_string[idx, 0];
         EXPECT_EQ(val, ch);
     }
@@ -386,7 +386,7 @@ TEST_F(ChunkedStringIteratorTests, TraverseSingleChunk)
     std::string str;
     for (size_t i = 0; i < strings_count; ++i) {
         auto iter = chunked_string_t::iterator{chunked_string[i]};
-        for (size_t j = 0; j < chunked_string.size(i); ++j) {
+        for (size_t j = 0; j < chunked_string[i].size(); ++j) {
             str += *iter++;
         }
         ASSERT_STREQ(str.c_str(), chunked_string[i].c_str());
@@ -415,7 +415,7 @@ TEST_F(ChunkedStringIteratorTests, TraverseSingleChunkBackward)
     std::string str;
     std::string str_rev;
     for (size_t i = 0; i < strings_count; ++i) {
-        auto last = chunked_string_t::iterator{chunked_string[i], static_cast<long int>(chunked_string.size(i))};
+        auto last = chunked_string_t::iterator{chunked_string[i], static_cast<long int>(chunked_string[i].size())};
         auto first = chunked_string_t::iterator{chunked_string[i]};
         for (auto iter = last - 1; iter != first - 1; --iter) {
             str += *iter;
@@ -449,8 +449,8 @@ TEST_F(ChunkedStringIteratorTests, Arithmetic)
     auto chunked_string = make_test_chunked_string();
 
     for (size_t i = 0; i < strings_count; ++i) {
-        bool size_is_odd = chunked_string.size(i) % 2 != 0;
-        auto s = static_cast<diff_t>(chunked_string.size(i)) + size_is_odd;
+        bool size_is_odd = chunked_string[i].size() % 2 != 0;
+        auto s = static_cast<diff_t>(chunked_string[i].size()) + size_is_odd;
         auto x = s / 2;
         auto iter = chunked_string_t::iterator{chunked_string[i]} + x;
 
