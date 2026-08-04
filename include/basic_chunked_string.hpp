@@ -315,32 +315,27 @@ public:
 
         string_t val = std::forward<StringTp>(str);
 
+        char_sequence seq;
+        seq.reserve(m_parent->m_data.size() + str_size - free_cap);
+        std::ranges::copy(m_parent->m_data, std::back_inserter(seq));
+
         if constexpr (detail::is_basic_string<char_sequence, Char>) {
+            std::contiguous_iterator auto insert_pos = seq.begin() + m_offset + pos;
             if (free_cap > 0) {
-                std::contiguous_iterator auto insert_pos = m_parent->begin_char() + m_offset + pos;
                 std::shift_right(insert_pos, insert_pos - pos + cap, free_cap);
-                m_parent->m_data.replace(insert_pos, insert_pos + free_cap, val);
+                seq.replace(insert_pos, insert_pos + free_cap, val);
                 auto dist = m_offset + size() + str_size;
-                m_parent->begin_char()[dist] = Char{'\0'};
+                seq.begin()[dist] = Char{'\0'};
             }
-            else {
-                char_sequence seq;
-                seq.reserve(m_parent->m_data.size() + str_size);
-                std::ranges::copy(m_parent->m_data, std::back_inserter(seq));
-                seq.insert(seq.begin() + m_offset + pos, val.begin(), val.end());
-                m_parent->m_data = std::move(seq);
-            }
+            else seq.insert(seq.begin() + m_offset + pos, val.begin(), val.end());
         }
         else {
-            char_sequence seq;
-            seq.reserve(m_parent->m_data.size() + str_size - free_cap);
-            std::ranges::copy(m_parent->m_data, std::back_inserter(seq));
             auto first = seq.begin() + m_offset;
             if (free_cap > 0) std::copy(val.begin(), val.begin() + free_cap, first + pos);
             seq.insert(first + free_cap + pos, val.begin() + free_cap, val.end());
-            m_parent->m_data = std::move(seq);
         }
 
+        m_parent->m_data = std::move(seq);
         reset(m_offset, size() + str_size);
         chunk::reset_neighbours(*this, m_parent->m_chunks);
 
@@ -348,6 +343,7 @@ public:
     }
     constexpr chunk& assign(const Char* c_str) { return assign(std::basic_string_view<Char>{c_str}); }
     constexpr chunk& append(const Char* c_str) { return append(std::basic_string_view<Char>{c_str}); }
+    constexpr chunk& insert(size_type pos, const Char* c_str) { return insert(pos, std::basic_string_view<Char>{c_str}); }
 
     constexpr void pop_back()
     {
