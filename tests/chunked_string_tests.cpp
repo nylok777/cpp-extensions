@@ -4,6 +4,8 @@
 #include <gtest/gtest.h>
 #include "chunked_string.hpp"
 
+using namespace std::string_view_literals;
+
 // Source - https://stackoverflow.com/a/62823211
 // Posted by nitronoid, modified by community. See post 'Timeline' for change history
 // Retrieved 2026-07-30, License - CC BY-SA 4.0
@@ -375,6 +377,24 @@ TEST_F(ChunkedStringMutationTests, PushBackToEmptyAllChunks)
         EXPECT_GT(chunked_string[idx].capacity(), 1);
         char val = chunked_string[idx, 0];
         EXPECT_EQ(val, ch);
+    }
+}
+
+TEST_F(ChunkedStringMutationTests, Insert)
+{
+    constexpr size_t count = 3;
+    constexpr std::array<std::string_view, 3> strings{"Grand Blanc et Noir", "Greater Dog", " Norwegian Elkhound"};
+    constexpr std::array<std::string_view, 3> missing{"Anglo-Francais ", "Swiss Mountain ", "Black"};
+    constexpr std::array<size_t, 3> insert_pos{6, 8, 0};
+    chunked_string<3> chunked_string = std::apply([](auto&&... strs) { return ::chunked_string<3>{strs...}; }, strings);
+    chunked_string[0].reserve(chunked_string[0].size() + missing[0].size() + 5);
+    chunked_string[1].reserve(chunked_string[1].size() + missing[1].size() / 2);
+
+    for (size_t i = 0; i < count; ++i) {
+        std::string str{strings[i]};
+        auto& res = chunked_string[i].insert(insert_pos[i], missing[i]);
+        auto& exp = str.insert(insert_pos[i], missing[i]);
+        ASSERT_STREQ(res.c_str(), exp.c_str());
     }
 }
 
