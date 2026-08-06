@@ -48,7 +48,34 @@ struct extract_template<Template<T, V, Args...>> {
     template<typename J, auto W, typename... NewArgs> using type = Template<J, W, NewArgs...>;
 };
 
-template<typename T = std::byte> requires std::copyable<T>
+namespace detail
+{
+template<std::integral T, typename IntSeq> struct make_reverse_integer_sequence_helper;
+
+template<std::integral T, T... Ints> struct make_reverse_integer_sequence_helper<T, std::integer_sequence<T, Ints...>> {
+    using type = std::integer_sequence<T, (sizeof...(Ints) - 1 - Ints)...>;
+};
+} // namespace detail
+
+template<std::integral T, T N>
+using make_reverse_integer_sequence = detail::make_reverse_integer_sequence_helper<T, std::make_integer_sequence<T, N>>::type;
+template<size_t N> using make_reverse_index_sequence = make_reverse_integer_sequence<size_t, N>::type;
+
+static_assert(std::same_as<make_reverse_integer_sequence<int, 5>, std::integer_sequence<int, 4, 3, 2, 1, 0>>);
+
+template<typename T> struct identity_element;
+
+template<std::integral T> struct identity_element<T> {
+    static constexpr T value = T{0};
+};
+
+template<typename T> inline constexpr T identity_element_v = identity_element<T>::value;
+
+template<auto Value> inline constexpr auto inverse_element_v = -Value;
+
+template<auto Lhs, auto Rhs> inline constexpr bool equals_v = Lhs == Rhs;
+
+template<typename T = char> requires std::copyable<T>
 using copyable_type = T;
 
 struct move_only_type {
@@ -57,7 +84,7 @@ struct move_only_type {
     move_only_type& operator=(move_only_type&&) noexcept = default;
     move_only_type(const move_only_type&) = delete;
     move_only_type& operator=(const move_only_type&) = delete;
-    std::byte data;
+    char data;
 };
 
 template<typename M> struct monad_traits {

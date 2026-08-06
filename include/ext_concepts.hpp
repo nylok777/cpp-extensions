@@ -11,12 +11,9 @@ namespace ext
 {
 template<typename T, typename OtherTp> concept convertible_from = std::convertible_to<OtherTp, T>;
 
-template<typename T, typename U>
-concept available_from = std::constructible_from<T, U> || convertible_from<T, U> || std::assignable_from<T, U>;
-
 template<typename From, typename To> concept constructible_into = std::constructible_from<To, From>;
 
-template<typename C, typename T> concept comparator = std::predicate<C, T, T>;
+template<typename C, typename T> concept comparator = std::strict_weak_order<C, T, T>;
 
 template<typename T> inline constexpr bool enable_char_type = false;
 
@@ -74,6 +71,23 @@ concept signed_integer =
     (std::signed_integral<T> || std::numeric_limits<std::remove_cvref_t<T>>::is_signed);
 // clang-format on
 
+template<typename T, typename... Us> concept one_of = (std::same_as<T, Us> || ...);
+
+template<typename Op, typename T>
+concept operation_on = requires(T a, T b, Op op) {
+    { op(a, b) } -> std::same_as<T>;
+};
+
+template<typename T, typename Op> concept magma = operation_on<Op, T>;
+
+template<typename T, typename Op> concept monoid = magma<T, Op> && requires(T a, T b, Op op) { typename identity_element<T>; };
+
+template<typename T, typename Op>
+concept group = monoid<T, Op> && requires(T a, T b, Op op) {
+    { op(a, inverse_element_v<a>) } -> std::convertible_to<std::integral_constant<T, identity_element_v<T>>>;
+    { op(b, inverse_element_v<b>) } -> std::convertible_to<std::integral_constant<T, identity_element_v<T>>>;
+};
+
 namespace detail
 {
 template<typename T, size_t I>
@@ -123,34 +137,23 @@ template<typename T>
 concept insert_range
     = std::ranges::input_range<T>
       && (enable_insert_range<T>
-          || requires(std::ranges::iterator_t<T> iter, std::ranges::range_value_t<T> value, T& range)
-{
-    range.insert(iter, value);
-});
+          || requires(std::ranges::iterator_t<T> iter, std::ranges::range_value_t<T> value, T& range) { range.insert(iter, value); });
 
 template<typename T>
 concept forward_insert_range
     = std::ranges::input_range<T>
-      && (enable_forward_insert_range<T> || requires(std::ranges::iterator_t<T> iter, std::ranges::range_value_t<T> value, T& range)
-{
-    range.insert_after(iter, value);
-});
+      && (enable_forward_insert_range<T>
+          || requires(std::ranges::iterator_t<T> iter, std::ranges::range_value_t<T> value, T& range) { range.insert_after(iter, value); });
 
 template<typename T>
 concept back_insert_range
     = std::ranges::input_range<T>
-      && (enable_back_insert_range<T> || requires(std::ranges::range_value_t<T> value, T& range)
-{
-    range.push_back(value);
-});
+      && (enable_back_insert_range<T> || requires(std::ranges::range_value_t<T> value, T& range) { range.push_back(value); });
 
 template<typename T>
 concept front_insert_range
     = std::ranges::input_range<T>
-      && (enable_front_insert_range<T> || requires(std::ranges::range_value_t<T> value, T& range)
-{
-    range.push_front(value);
-});
+      && (enable_front_insert_range<T> || requires(std::ranges::range_value_t<T> value, T& range) { range.push_front(value); });
 
 template<typename U, typename T> concept collection_of = std::same_as<std::ranges::range_value_t<U>, T>;
 
@@ -331,7 +334,7 @@ template<typename T, typename... E>
 concept monadic = requires(T& t) {
     typename monad_traits<T>::value_type;
     { monad_traits<T>::has_value(t) } -> boolean;
-    { monad_traits<T>::value(t) } -> available_from<typename monad_traits<T>::value_type>;
+    { monad_traits<T>::value(t) } -> std::same_as<typename monad_traits<T>::value_type&>;
     {
         monad_traits<T>::or_else(t, [](auto&&...) -> std::remove_cvref_t<T> { return std::remove_cvref_t<T>(); })
     } -> std::same_as<std::remove_reference_t<T>>;

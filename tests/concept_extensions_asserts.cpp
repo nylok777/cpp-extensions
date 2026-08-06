@@ -88,7 +88,8 @@ struct small_type {
     int x, y, z;
 };
 
-using move_only_type = std::unique_ptr<a_type>;
+using ext::move_only_type;
+// using move_only_type = std::unique_ptr<a_type>;
 
 using comparator_archetype = std::less<>;
 
@@ -142,9 +143,8 @@ static_assert(ext::associative_array<tree_map>);
 static_assert(ext::smart_pointer<std::shared_ptr<std::string>>);
 static_assert(ext::smart_pointer<std::unique_ptr<std::string>>);
 
-static_assert(ext::available_from<std::string, const char*>);
-static_assert(ext::available_from<std::string_view, std::string>);
-static_assert(ext::available_from<std::vector<float>, int>);
+static_assert(ext::convertible_from<std::string, const char*>);
+static_assert(ext::convertible_from<std::string_view, std::string>);
 
 static_assert(ext::monadic<std::optional<move_only_type>>);
 static_assert(ext::monadic<std::optional<a_type>>);
