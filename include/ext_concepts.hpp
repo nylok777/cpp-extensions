@@ -71,6 +71,12 @@ concept signed_integer =
     (std::signed_integral<T> || std::numeric_limits<std::remove_cvref_t<T>>::is_signed);
 // clang-format on
 
+template<typename T> concept number = ext::integer<T> || std::floating_point<T>;
+
+template<typename From, typename... Others> concept convertible_to_either = (std::convertible_to<From, Others> || ...);
+
+template<typename From, typename To> concept castable_to = requires(From e) { static_cast<To>(e); };
+
 template<typename T, typename... Us> concept one_of = (std::same_as<T, Us> || ...);
 
 template<typename Op, typename T>
