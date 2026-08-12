@@ -57,7 +57,7 @@ concept integer_like =
 template<typename T>
 concept integer =
     (std::integral<T> || integer_like<T>) &&
-    !character<T> &&
+    (!character<T> || std::same_as<uint8_t, T> || std::same_as<int8_t, T>) &&
     !boolean<T>;
 
 template<typename T>
