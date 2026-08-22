@@ -15,6 +15,12 @@ template<typename From, typename To> concept constructible_into = std::construct
 
 template<typename C, typename T> concept comparator = std::strict_weak_order<C, T, T>;
 
+template<typename From, typename... Others> concept convertible_to_either = (std::convertible_to<From, Others> || ...);
+
+template<typename From, typename To> concept castable_to = requires(From e) { static_cast<To>(e); };
+
+template<typename T, typename... Us> concept one_of = (std::same_as<T, Us> || ...);
+
 template<typename T> inline constexpr bool enable_char_type = false;
 
 // clang-format off
@@ -27,13 +33,13 @@ concept character =
     std::same_as<std::remove_cvref_t<T>, char8_t> ||
     std::same_as<std::remove_cvref_t<T>, char16_t> ||
     std::same_as<std::remove_cvref_t<T>, char32_t> ||
-    enable_char_type<T>;
+    enable_char_type<std::remove_cvref_t<T>>;
 
 template<typename T>
-concept unsigned_character = character<T> && std::unsigned_integral<T>;
+concept unsigned_character = character<T> && std::unsigned_integral<std::remove_reference_t<T>>;
 
 template<typename T>
-concept signed_character = character<T> && std::signed_integral<T>;
+concept signed_character = character<T> && std::signed_integral<std::remove_reference_t<T>>;
 
 template<typename T, typename Ch>
 concept string_like = character<Ch> && std::convertible_to<T, std::basic_string_view<Ch>>;
@@ -56,28 +62,22 @@ concept integer_like =
 
 template<typename T>
 concept integer =
-    (std::integral<T> || integer_like<T>) &&
-    (!character<T> || std::same_as<uint8_t, T> || std::same_as<int8_t, T>) &&
+    (std::integral<std::remove_reference_t<T>> || integer_like<T>) &&
+    (!character<T> || one_of<std::remove_cvref_t<T>, uint8_t, int8_t>) &&
     !boolean<T>;
 
 template<typename T>
 concept unsigned_integer =
     integer<T> &&
-    (std::unsigned_integral<T> || !std::numeric_limits<std::remove_cvref_t<T>>::is_signed);
+    (std::unsigned_integral<std::remove_reference_t<T>> || !std::numeric_limits<std::remove_reference_t<T>>::is_signed);
 
 template<typename T>
 concept signed_integer =
     integer<T> &&
-    (std::signed_integral<T> || std::numeric_limits<std::remove_cvref_t<T>>::is_signed);
+    (std::signed_integral<std::remove_reference_t<T>> || std::numeric_limits<std::remove_reference_t<T>>::is_signed);
 // clang-format on
 
-template<typename T> concept number = ext::integer<T> || std::floating_point<T>;
-
-template<typename From, typename... Others> concept convertible_to_either = (std::convertible_to<From, Others> || ...);
-
-template<typename From, typename To> concept castable_to = requires(From e) { static_cast<To>(e); };
-
-template<typename T, typename... Us> concept one_of = (std::same_as<T, Us> || ...);
+template<typename T> concept number = ext::integer<T> || std::floating_point<std::remove_reference_t<T>>;
 
 template<typename Op, typename T>
 concept operation_on = requires(T a, T b, Op op) {

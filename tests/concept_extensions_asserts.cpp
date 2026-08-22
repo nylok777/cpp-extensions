@@ -4,6 +4,7 @@
 #include <array>
 #include <bitset>
 #include <cmath>
+#include <cstdint>
 #include <deque>
 #include <forward_list>
 #include <list>
@@ -14,6 +15,7 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
+#include <complex>
 #if __cplusplus >= 202302l
 #include <expected>
 #endif
@@ -89,14 +91,63 @@ struct small_type {
 };
 
 using ext::move_only_type;
-// using move_only_type = std::unique_ptr<a_type>;
 
 using comparator_archetype = std::less<>;
 
-static_assert(ext::integer<int>);
-static_assert(ext::integer<size_t>);
-static_assert(!ext::integer<bool>);
-static_assert(!ext::integer<char>);
+enum class sign {
+    Signed = 1 << 1,
+    Unsigned = 1 << 2,
+    Any = Signed | Unsigned,
+};
+
+constexpr auto operator|(const sign& a, const sign& b) -> sign { return static_cast<sign>(static_cast<int>(a) | static_cast<int>(b)); }
+
+template<typename T, sign Sign> consteval bool test_character()
+{
+    using type_tuple = std::tuple<T, T&, const T, const T&>;
+    return []<size_t... Idx>(std::index_sequence<Idx...>) {
+        switch (Sign) {
+            case sign::Signed: return (ext::signed_character<std::tuple_element_t<Idx, type_tuple>> && ...);
+            case sign::Unsigned: return (ext::unsigned_character<std::tuple_element_t<Idx, type_tuple>> && ...);
+            default: return (ext::character<std::tuple_element_t<Idx, type_tuple>> && ...);
+        }
+    }(std::make_index_sequence<std::tuple_size_v<type_tuple>>{});
+}
+
+static_assert(test_character<char, sign::Signed>());
+static_assert(test_character<unsigned char, sign::Unsigned>());
+static_assert(test_character<char8_t, sign::Any>());
+
+template<typename T, sign Sign> consteval bool test_integer()
+{
+    using type_tuple = std::tuple<T, T&, const T, const T&>;
+    return []<size_t... Idx>(std::index_sequence<Idx...>) {
+        if constexpr (Sign == sign::Signed) {
+            return (ext::signed_integer<std::tuple_element_t<Idx, type_tuple>> && ...);
+        }
+        else if constexpr (Sign == sign::Unsigned) {
+            return (ext::unsigned_integer<std::tuple_element_t<Idx, type_tuple>> && ...);
+        }
+        else {
+            return (ext::integer<std::tuple_element_t<Idx, type_tuple>> && ...);
+        }
+    }(std::make_index_sequence<std::tuple_size_v<type_tuple>>{});
+}
+
+static_assert(test_integer<int, sign::Any>());
+static_assert(test_integer<short, sign::Signed>());
+static_assert(!test_integer<long, sign::Unsigned>());
+
+static_assert(test_integer<unsigned, sign::Any>());
+static_assert(test_integer<unsigned short, sign::Unsigned>());
+static_assert(!test_integer<unsigned long, sign::Signed>());
+
+static_assert(test_integer<int8_t, sign::Signed>());
+static_assert(test_integer<uint8_t, sign::Unsigned>());
+
+static_assert(!test_integer<bool, sign::Any>());
+static_assert(!test_integer<char, sign::Any>());
+static_assert(!test_integer<char, sign::Signed>());
 
 static_assert(ext::comparator<comparator_archetype, a_type>);
 
