@@ -149,6 +149,22 @@ static_assert(!test_integer<bool, sign::Any>());
 static_assert(!test_integer<char, sign::Any>());
 static_assert(!test_integer<char, sign::Signed>());
 
+static_assert(ext::string_like<std::string>);
+static_assert(ext::string_like<std::string_view>);
+static_assert(ext::string_like<const char*>);
+static_assert(ext::string_like<char*>);
+static_assert(ext::string_like<char[10]>);
+static_assert(ext::string_like<const char[10]>);
+
+static_assert(!ext::mutable_string_like<std::string_view>);
+static_assert(!ext::mutable_string_like<const char*>);
+static_assert(!ext::mutable_string_like<const char[10]>);
+static_assert(!ext::mutable_string_like<const std::string>);
+
+static_assert(ext::mutable_string_like<std::string>);
+static_assert(ext::mutable_string_like<char*>);
+static_assert(ext::mutable_string_like<char[10]>);
+
 static_assert(ext::comparator<comparator_archetype, a_type>);
 
 static constexpr size_t fixed_container_size = 512;
@@ -249,9 +265,13 @@ static_assert(ext::smart_pointer<boost::intrusive_ptr<a_type>>);
 #ifdef TEST_QT
 template<> inline constexpr bool ext::enable_char_type<QChar> = requires { sizeof(std::char_traits<QChar>); };
 
+static_assert(test_character<QChar, sign::Any>());
+
 static_assert(ext::string_like<QString, char16_t>);
+static_assert(ext::string_like<QStringView, char16_t>);
+static_assert(!ext::mutable_string_like<QStringView, char16_t>);
+static_assert(!ext::mutable_string_like<const QString, char16_t>);
 static_assert(ext::any_string_like<QString>);
-static_assert(ext::character<QChar>);
 
 static_assert(ext::mutable_set<QSet<a_type>>);
 

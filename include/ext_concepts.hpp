@@ -9,6 +9,8 @@
 
 namespace ext
 {
+template<typename T> concept lvalue_reference = std::is_lvalue_reference_v<T>;
+
 template<typename T, typename OtherTp> concept convertible_from = std::convertible_to<OtherTp, T>;
 
 template<typename From, typename To> concept constructible_into = std::constructible_from<To, From>;
@@ -41,8 +43,14 @@ concept unsigned_character = character<T> && std::unsigned_integral<std::remove_
 template<typename T>
 concept signed_character = character<T> && std::signed_integral<std::remove_reference_t<T>>;
 
-template<typename T, typename Ch>
+template<typename T, typename Ch = char>
 concept string_like = character<Ch> && std::convertible_to<T, std::basic_string_view<Ch>>;
+
+template<typename T, typename Ch = char>
+concept mutable_string_like = string_like<T, Ch> && requires(T t, int i, Ch ch) {
+    t[i] = ch;
+    { t[i] } -> lvalue_reference;
+};
 
 template<typename T>
 concept any_string_like =
