@@ -4,8 +4,8 @@
 
 #ifndef CPPEXTENSIONS_BASIC_CHUNKED_STRING_HPP
 #define CPPEXTENSIONS_BASIC_CHUNKED_STRING_HPP
-#if __cplusplus >= 202302l
-#include "basic_chunked_string.hpp"
+
+static_assert(__cplusplus >= 202302l);
 
 #include <algorithm>
 #include <span>
@@ -21,7 +21,7 @@ namespace ext
 namespace detail { template<typename T, typename Ch> concept is_basic_string = std::same_as<std::basic_string<Ch>, T>; }
 
 template<character Char, size_t ChunkNum, template<typename> class CharSequence, template<typename, size_t N> class ChunkSequence>
-requires contiguous_sequence<CharSequence<Char>> && contiguous_sequence<ChunkSequence<copyable_type<>, ChunkNum>, {.fixed = true}>
+requires contiguous_sequence<CharSequence<Char>> && contiguous_sequence<ChunkSequence<char, ChunkNum>, {.fixed = true}>
 class basic_chunked_string {
 public:
     class chunk;
@@ -206,7 +206,7 @@ private:
 };
 
 template<character Char, size_t ChunkNum, template<typename> class CharSequence, template<typename, size_t N> class ChunkSequence>
-requires contiguous_sequence<CharSequence<Char>> && contiguous_sequence<ChunkSequence<copyable_type<>, ChunkNum>, {.fixed = true}>
+requires contiguous_sequence<CharSequence<Char>> && contiguous_sequence<ChunkSequence<char, ChunkNum>, {.fixed = true}>
 class basic_chunked_string<Char, ChunkNum, CharSequence, ChunkSequence>::chunk {
     friend basic_chunked_string;
     friend class iterator_base<false>;
@@ -470,7 +470,7 @@ private:
 };
 
 template<character Char, size_t ChunkNum, template<typename> class CharSequence, template<typename, size_t N> class ChunkSequence>
-requires contiguous_sequence<CharSequence<Char>> && contiguous_sequence<ChunkSequence<copyable_type<>, ChunkNum>, {.fixed = true}>
+requires contiguous_sequence<CharSequence<Char>> && contiguous_sequence<ChunkSequence<char, ChunkNum>, {.fixed = true}>
 template<bool IsConst>
 class basic_chunked_string<Char, ChunkNum, CharSequence, ChunkSequence>::iterator_base {
 public:
@@ -559,5 +559,4 @@ public:
 };
 
 } // namespace ext
-#endif
 #endif

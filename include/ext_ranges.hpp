@@ -163,7 +163,7 @@ public:
 };
 
 template<std::ranges::forward_range V, template<typename...> class ContainerTp = std::vector>
-requires indexed_sequence<ContainerTp<copyable_type<>>> && reservable<ContainerTp<copyable_type<>>>
+requires indexed_sequence<ContainerTp<int>> && reservable<ContainerTp<int>>
 class eager_view_base : public std::ranges::view_interface<eager_view_base<V>> {
 public:
     using base_iterator_type = std::ranges::iterator_t<V>;

@@ -72,18 +72,6 @@ template<auto Value> inline constexpr auto inverse_element_v = -Value;
 
 template<auto Lhs, auto Rhs> inline constexpr bool equals_v = Lhs == Rhs;
 
-template<typename T = char> requires std::copyable<T>
-using copyable_type = T;
-
-struct move_only_type {
-    move_only_type() = default;
-    move_only_type(move_only_type&&) noexcept = default;
-    move_only_type& operator=(move_only_type&&) noexcept = default;
-    move_only_type(const move_only_type&) = delete;
-    move_only_type& operator=(const move_only_type&) = delete;
-    char data;
-};
-
 }
 
 #endif // CPP_EXTENSIONS_TRAITS_HPP

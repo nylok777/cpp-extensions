@@ -90,8 +90,6 @@ struct small_type {
     int x, y, z;
 };
 
-using ext::move_only_type;
-
 using comparator_archetype = std::less<>;
 
 enum class sign {
