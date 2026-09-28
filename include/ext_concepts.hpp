@@ -346,29 +346,5 @@ concept smart_pointer = std::destructible<P> && requires(P& p) {
     { p.get() } -> std::same_as<std::add_pointer_t<typename P::element_type>>;
 };
 
-template<typename T, typename... E>
-concept monadic = requires(T& t) {
-    typename monad_traits<T>::value_type;
-    { monad_traits<T>::has_value(t) } -> boolean;
-    { monad_traits<T>::value(t) } -> std::same_as<typename monad_traits<T>::value_type&>;
-    {
-        monad_traits<T>::or_else(t, [](auto&&...) -> std::remove_cvref_t<T> { return std::remove_cvref_t<T>(); })
-    } -> std::same_as<std::remove_reference_t<T>>;
-    {
-        monad_traits<T>::and_then(t, [](auto&&) -> rebind_t<T, char, E...> { return rebind_t<T, char, E...>(); })
-    } -> std::same_as<rebind_t<T, char, E...>>;
-    {
-        monad_traits<T>::transform(t, [](auto&&) -> char { return char(); })
-    } -> std::same_as<rebind_t<T, char, E...>>;
-};
-
-template<typename T>
-concept error_monad = monadic<T, typename error_monad_traits<T>::error_type> && requires(T t) {
-    typename error_monad_traits<T>::error_type;
-    { error_monad_traits<T>::error(t) } -> std::convertible_to<typename error_monad_traits<T>::error_type>;
-    {
-        error_monad_traits<T>::transform_error(t, [](auto&&) { return char(); })
-    } -> std::same_as<rebind_t<T, typename error_monad_traits<T>::value_type, char>>;
-};
 } // namespace ext
 #endif // CPP_EXTENSIONS_CONCEPTS_HPP

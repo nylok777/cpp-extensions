@@ -213,17 +213,6 @@ static_assert(ext::smart_pointer<std::unique_ptr<std::string>>);
 static_assert(ext::convertible_from<std::string, const char*>);
 static_assert(ext::convertible_from<std::string_view, std::string>);
 
-static_assert(ext::monadic<std::optional<move_only_type>>);
-static_assert(ext::monadic<std::optional<a_type>>);
-static_assert(ext::monadic<std::optional<int>>);
-static_assert(ext::monadic<std::optional<std::tuple<int, float, std::u8string>>>);
-#if __cplusplus >= 202302l
-static_assert(ext::error_monad<std::expected<double, int>>);
-static_assert(ext::error_monad<std::expected<std::vector<int>, std::string>>);
-static_assert(ext::error_monad<std::expected<move_only_type, std::string>>);
-static_assert(ext::error_monad<std::expected<std::tuple<float, float, std::u8string>, std::string>>);
-#endif
-
 #ifdef TEST_ABSEIL
 template<template<typename...> class MapTemplate> using add_kv_to_map = MapTemplate<char8_t, small_type>;
 template<template<typename...> class SetTemplate> using add_key_to_set = SetTemplate<a_type>;

@@ -185,6 +185,11 @@ ext_header_only_library(chunked_string
         SOURCES "include/basic_chunked_string.hpp" "include/chunked_string.hpp"
 )
 
+ext_header_only_library(monad
+        ASSERTS_ONLY
+        SOURCES "include/monad.hpp"
+)
+
 ext_install_targets(
         TARGETS concept_extensions range_extensions chunked_string
 )
