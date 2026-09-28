@@ -60,18 +60,6 @@ template<size_t N> using make_reverse_index_sequence = make_reverse_integer_sequ
 
 static_assert(std::same_as<make_reverse_integer_sequence<int, 5>, std::integer_sequence<int, 4, 3, 2, 1, 0>>);
 
-template<typename T> struct identity_element;
-
-template<std::integral T> struct identity_element<T> {
-    static constexpr T value = T{0};
-};
-
-template<typename T> inline constexpr T identity_element_v = identity_element<T>::value;
-
-template<auto Value> inline constexpr auto inverse_element_v = -Value;
-
-template<auto Lhs, auto Rhs> inline constexpr bool equals_v = Lhs == Rhs;
-
 }
 
 #endif // CPP_EXTENSIONS_TRAITS_HPP

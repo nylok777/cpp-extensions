@@ -4,10 +4,9 @@
 
 #ifndef CPP_EXTENSIONS_CONCEPTS_HPP
 #define CPP_EXTENSIONS_CONCEPTS_HPP
+#include <concepts>
 #include <string_view>
 #include <cstdint>
-
-#include "ext_traits.hpp"
 
 namespace ext
 {
@@ -88,21 +87,6 @@ concept signed_integer =
 // clang-format on
 
 template<typename T> concept number = ext::integer<T> || std::floating_point<std::remove_reference_t<T>>;
-
-template<typename Op, typename T>
-concept operation_on = requires(T a, T b, Op op) {
-    { op(a, b) } -> std::same_as<T>;
-};
-
-template<typename T, typename Op> concept magma = operation_on<Op, T>;
-
-template<typename T, typename Op> concept monoid = magma<T, Op> && requires(T a, T b, Op op) { typename identity_element<T>; };
-
-template<typename T, typename Op>
-concept group = monoid<T, Op> && requires(T a, T b, Op op) {
-    { op(a, inverse_element_v<a>) } -> std::convertible_to<std::integral_constant<T, identity_element_v<T>>>;
-    { op(b, inverse_element_v<b>) } -> std::convertible_to<std::integral_constant<T, identity_element_v<T>>>;
-};
 
 namespace detail
 {
