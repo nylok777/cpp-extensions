@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: BSD-3-Clause
+// Copyright 2026 nylok777 (https://github.com/nylok777)
+
 //
 // Created by david on 12/10/25.
 //
