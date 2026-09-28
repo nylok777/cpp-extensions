@@ -11,6 +11,7 @@
 #include <span>
 #include <stdexcept>
 #include <ranges>
+#include <functional>
 
 #include "ext_concepts.hpp"
 

@@ -4,6 +4,8 @@
 
 #ifndef CPP_EXTENSIONS_CONCEPTS_HPP
 #define CPP_EXTENSIONS_CONCEPTS_HPP
+#include <string_view>
+#include <cstdint>
 
 #include "ext_traits.hpp"
 
